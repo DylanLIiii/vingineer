@@ -31,6 +31,9 @@ claude-migrate convert opencode --output ./my-configs
 
 # JSON format (single opencode.json file instead of directories)
 claude-migrate convert opencode --format json
+
+# Include installed Claude plugins
+claude-migrate convert opencode --plugins
 ```
 
 ### Convert to Copilot
@@ -51,7 +54,7 @@ claude-migrate convert copilot --output ./my-configs
 # Preview changes without writing files
 claude-migrate convert opencode --dry-run
 
-# Force overwrite existing output directory
+# Force overwrite existing files (automatic backups are always created)
 claude-migrate convert opencode --force
 
 # Verbose output
@@ -72,6 +75,8 @@ claude-migrate convert opencode --plugins
 | **Commands** | `~/.claude/commands/*.md` or `./.claude/commands/*.md`<br/>(or plugins, namespaced as `pluginName:command`) | `command/*.md` | `.github/prompts/*.prompt.md` |
 | **Skills** | `~/.claude/skills/*/SKILL.md` or `./.claude/skills/*/SKILL.md`<br/>(or plugins, namespaced as `pluginName:skill`) | `skill/*/SKILL.md` | `.github/skills/*/SKILL.md` |
 | **MCP Servers** | `~/.claude/.mcp.json` or `./.claude/.mcp.json`<br/>(or plugins, namespaced as `pluginName:server`) | `mcp.json` | `mcp.json` |
+
+**Note**: Use `--plugins` flag to include installed Claude plugins (agents, commands, skills, MCPs from `~/.claude/plugins/`).
 
 ## Using the Output
 
@@ -108,6 +113,42 @@ cp copilot_export/mcp.json mcp.json
 jq -s '.mcpServers += input.mcpServers' mcp.json < copilot_export/mcp.json > mcp.json
 ```
 
+## Backup Behavior
+
+Files are automatically backed up before overwriting to prevent data loss.
+
+- **Location**: `~/.claude-migrate/backups/`
+- **Structure**: Maintains relative directory structure
+- **Format**: `<filename>.backup_YYYYMMDD_HHMMSS`
+- **Retention**: Last 5 backups per file (older ones automatically deleted)
+- **Always active**: Backups are created even with `--force` flag
+
+### Example Backup Structure
+
+```
+~/.claude-migrate/backups/
+├── agent/
+│   ├── test-agent.md.backup_20250106_142530
+│   └── test-agent.md.backup_20250106_153000
+├── command/
+│   └── deploy.md.backup_20250106_140000
+└── skill/
+    └── review/SKILL.md.backup_20250106_130000
+```
+
+### Restoring from Backup
+
+To restore a file from backup:
+
+```bash
+# Find backups
+ls ~/.claude-migrate/backups/agent/
+
+# Copy backup back
+cp ~/.claude-migrate/backups/agent/test-agent.md.backup_20250106_142530 \
+   ~/.config/opencode/agent/test-agent.md
+```
+
 ## Configuration
 
 The tool auto-detects config scope as follows:
@@ -134,7 +175,7 @@ Convert Claude Code configurations to target format.
 - `--plugins` - Include installed Claude plugins (only honored in project scope)
 - `-f, --format [dir\|json]` - Output format (only for OpenCode, default: `dir`)
 - `-n, --dry-run` - Preview changes without writing files
-- `--force` - Overwrite existing output directory
+- `--force` - Overwrite existing files (automatic backups are always created)
 - `-v, --verbose` - Enable verbose output
 - `--version` - Show version and exit
 - `--help` - Show help message and exit
@@ -193,11 +234,13 @@ If neither exists, run Claude Code at least once to create the configuration.
 
 ### "Output directory already exists"
 
-Use the `--force` flag to overwrite:
+Use the `--force` flag to overwrite existing files (automatic backups created):
 
 ```bash
 claude-migrate convert opencode --force
 ```
+
+**Important**: Files are always backed up before overwriting. Backups are stored at `~/.claude-migrate/backups/` and the last 5 backups per file are retained.
 
 ### "No agents/commands/skills found"
 
@@ -227,7 +270,7 @@ cat ~/.claude/.mcp.json | python -m json.tool
 
 Check for conversion errors in the statistics summary. Files with errors are skipped.
 
-Use `--verbose` to see detailed detection information.
+Use `--verbose` to see detailed detection information. If using plugins, check that plugin directory paths are valid and contain the expected `.claude/agents`, `.claude/commands`, etc. subdirectories.
 
 ## Development
 

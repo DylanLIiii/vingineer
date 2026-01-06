@@ -150,3 +150,418 @@ def test_copilot_converter_sanitizes_filenames(tmp_path):
     assert (output_dir / "mcp.json").exists()
     mcp_data = json.loads((output_dir / "mcp.json").read_text(encoding="utf-8"))
     assert mcp_data["mcpServers"]["srv"]["type"] == "stdio"
+
+
+@pytest.fixture
+def plugin_v2_installed(tmp_path):
+    """Create mock installed_plugins.json with version 2 format."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "test-plugin@marketplace": [
+                        {
+                            "name": "test-plugin",
+                            "scope": "project",
+                            "directory": str(plugin_base / "test-plugin"),
+                        }
+                    ],
+                    "mgrep@Mixedbread-Grep": [
+                        {
+                            "name": "mgrep",
+                            "scope": "project",
+                            "directory": str(plugin_base / "mgrep"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Create plugin directories
+    for plugin_name in ["test-plugin", "mgrep"]:
+        plugin_dir = plugin_base / plugin_name
+        plugin_dir.mkdir()
+        (plugin_dir / "agents").mkdir()
+        (plugin_dir / "commands").mkdir()
+        (plugin_dir / "skills").mkdir()
+
+        (plugin_dir / "agents" / f"{plugin_name}-agent.md").write_text(
+            f"---\nname: {plugin_name}-agent\n---\nPrompt",
+            encoding="utf-8",
+        )
+        (plugin_dir / "commands" / f"{plugin_name}-cmd.md").write_text(
+            f"---\nname: {plugin_name}-cmd\n---\nBody",
+            encoding="utf-8",
+        )
+        skill_dir = plugin_dir / "skills" / f"{plugin_name}-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\n---\nSkill body", encoding="utf-8"
+        )
+
+    return tmp_path
+
+
+def test_plugin_loading_v2_format(plugin_v2_installed, monkeypatch):
+    """Test loading plugins with version 2 JSON format."""
+    # Mock Path.home() to use test directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: plugin_v2_installed)
+
+    loader = ClaudeLoader(
+        plugin_v2_installed / ".claude", include_plugins=True, scope="project"
+    )
+    config = loader.load()
+
+    assert len(config.agents) == 2
+    assert config.agents[0].name == "test-plugin:test-plugin-agent"
+    assert config.agents[1].name == "mgrep:mgrep-agent"
+
+    assert len(config.commands) == 2
+    assert config.commands[0].name == "test-plugin:test-plugin-cmd"
+    assert config.commands[1].name == "mgrep:mgrep-cmd"
+
+    assert len(config.skills) == 2
+
+
+def test_plugin_skip_invalid(tmp_path, monkeypatch):
+    """Test that plugins without name/directory are skipped."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "valid@marketplace": [
+                        {
+                            "name": "valid-plugin",
+                            "scope": "project",
+                            "directory": str(tmp_path / "valid"),
+                        }
+                    ],
+                    "invalid-missing-name@marketplace": [
+                        {"scope": "project", "directory": str(tmp_path / "invalid1")}
+                    ],
+                    "invalid-missing-dir@marketplace": [
+                        {"name": "invalid2", "scope": "project"}
+                    ],
+                    "invalid-no-path@marketplace": [
+                        {
+                            "name": "no-path",
+                            "scope": "project",
+                            "directory": str(tmp_path / "nonexistent"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Create only valid plugin
+    (tmp_path / "valid").mkdir()
+    (tmp_path / "valid" / "agents").mkdir()
+    (tmp_path / "valid" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nPrompt"
+    )
+
+    # Mock Path.home() to use test directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True, scope="project")
+    config = loader.load()
+
+    assert len(config.agents) == 1
+    assert config.agents[0].name == "valid-plugin:agent"
+
+
+def test_plugin_v1_format(tmp_path, monkeypatch):
+    """Test backward compatibility with version 1 format."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "plugins": [
+                    {
+                        "name": "old-plugin",
+                        "scope": "project",
+                        "directory": str(plugin_base / "old"),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (plugin_base / "old").mkdir()
+    (plugin_base / "old" / "agents").mkdir()
+    (plugin_base / "old" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nPrompt"
+    )
+
+    # Mock Path.home() to use test directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True, scope="project")
+    config = loader.load()
+
+    assert len(config.agents) == 1
+    assert config.agents[0].name == "old-plugin:agent"
+
+
+def test_plugin_derive_name_from_key(tmp_path, monkeypatch):
+    """Test deriving plugin name from key when name field is missing."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "compound-engineering@every-marketplace": [
+                        {
+                            "scope": "user",
+                            "installPath": str(plugin_base / "compound-eng"),
+                        }
+                    ],
+                    "mgrep@Mixedbread-Grep": [
+                        {
+                            "scope": "user",
+                            "installPath": str(plugin_base / "mgrep"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Create plugin directories
+    (plugin_base / "compound-eng").mkdir()
+    (plugin_base / "compound-eng" / "agents").mkdir()
+    (plugin_base / "compound-eng" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nPrompt"
+    )
+
+    (plugin_base / "mgrep").mkdir()
+    (plugin_base / "mgrep" / "commands").mkdir()
+    (plugin_base / "mgrep" / "commands" / "cmd.md").write_text(
+        "---\nname: cmd\n---\nBody"
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True)
+    config = loader.load()
+
+    # Should derive name from key when name field is missing
+    assert len(config.agents) == 1
+    assert config.agents[0].name == "compound-engineering:agent"
+
+    assert len(config.commands) == 1
+    assert config.commands[0].name == "mgrep:cmd"
+
+
+def test_plugin_user_scope_skipped(tmp_path, monkeypatch):
+    """Test that user-scope plugins are skipped when scope is project (DEPRECATED)."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "user-plugin@marketplace": [
+                        {
+                            "name": "user-plugin",
+                            "scope": "user",
+                            "directory": str(plugin_base / "user"),
+                        }
+                    ],
+                    "project-plugin@marketplace": [
+                        {
+                            "name": "project-plugin",
+                            "scope": "project",
+                            "directory": str(plugin_base / "project"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Create both plugin directories
+    (plugin_base / "user").mkdir()
+    (plugin_base / "user" / "agents").mkdir()
+    (plugin_base / "user" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nUser Prompt"
+    )
+
+    (plugin_base / "project").mkdir()
+    (plugin_base / "project" / "agents").mkdir()
+    (plugin_base / "project" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nProject Prompt"
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    # Scope filtering is no longer enforced - all plugins with scope are loaded
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True)
+    config = loader.load()
+
+    # Both plugins should be loaded (scope filtering removed)
+    assert len(config.agents) == 2
+    assert config.agents[0].name == "user-plugin:agent"
+    assert config.agents[1].name == "project-plugin:agent"
+
+
+def test_plugin_user_scope_loads_when_user_scope(tmp_path, monkeypatch):
+    """Test that user-scope plugins are loaded regardless of scope setting."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "user-plugin@marketplace": [
+                        {
+                            "name": "user-plugin",
+                            "scope": "user",
+                            "directory": str(plugin_base / "user"),
+                        }
+                    ],
+                    "project-plugin@marketplace": [
+                        {
+                            "name": "project-plugin",
+                            "scope": "project",
+                            "directory": str(plugin_base / "project"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Create both plugin directories
+    (plugin_base / "user").mkdir()
+    (plugin_base / "user" / "agents").mkdir()
+    (plugin_base / "user" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nUser Prompt"
+    )
+
+    (plugin_base / "project").mkdir()
+    (plugin_base / "project" / "agents").mkdir()
+    (plugin_base / "project" / "agents" / "agent.md").write_text(
+        "---\nname: agent\n---\nProject Prompt"
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    # Scope filtering is no longer enforced - all plugins are loaded
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True)
+    config = loader.load()
+
+    # Both plugins should be loaded
+    assert len(config.agents) == 2
+
+
+def test_plugin_mcp_from_plugin_json(tmp_path, monkeypatch):
+    """Test loading MCP servers from plugin's .claude-plugin/plugin.json."""
+    plugins_dir = tmp_path / ".claude" / "plugins"
+    plugins_dir.mkdir(parents=True)
+
+    plugin_base = tmp_path / "plugin_cache"
+    plugin_base.mkdir()
+
+    installed = plugins_dir / "installed_plugins.json"
+    installed.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "plugins": {
+                    "test-plugin@marketplace": [
+                        {
+                            "name": "test-plugin",
+                            "scope": "project",
+                            "installPath": str(plugin_base / "test-plugin"),
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    plugin_dir = plugin_base / "test-plugin"
+    plugin_dir.mkdir()
+
+    claude_plugin_dir = plugin_dir / ".claude-plugin"
+    claude_plugin_dir.mkdir()
+
+    plugin_json = claude_plugin_dir / "plugin.json"
+    plugin_json.write_text(
+        json.dumps(
+            {
+                "name": "test-plugin",
+                "mcpServers": {
+                    "test-server": {
+                        "type": "stdio",
+                        "command": "echo",
+                        "args": ["hello"],
+                    },
+                    "disabled-server": {
+                        "type": "stdio",
+                        "command": "disabled",
+                        "args": [],
+                        "disabled": True,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+    loader = ClaudeLoader(tmp_path / ".claude", include_plugins=True)
+    config = loader.load()
+
+    assert len(config.mcp_servers) == 1
+    assert "test-plugin:test-server" in config.mcp_servers

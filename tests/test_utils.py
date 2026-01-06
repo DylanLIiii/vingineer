@@ -9,6 +9,8 @@ from claude_migrate.utils import (
     detect_claude_config,
     get_default_output_dir,
     get_claude_setup_instructions,
+    backup_file,
+    get_backup_dir,
 )
 
 
@@ -134,3 +136,57 @@ def test_get_default_output_dir_opencode_project(tmp_path, monkeypatch):
 def test_get_default_output_dir_copilot_user(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert get_default_output_dir("copilot", "user") == tmp_path / "copilot_export"
+
+
+@pytest.fixture
+def backup_test_file(tmp_path):
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("original content")
+    return test_file
+
+
+def test_backup_file(backup_test_file, tmp_path):
+    """Test that backup is created correctly."""
+
+    backup_path = backup_file(backup_test_file)
+
+    assert backup_path is not None
+    assert backup_path.exists()
+    assert backup_path.name.startswith("test.backup_")
+    assert backup_path.read_text() == "original content"
+    assert get_backup_dir().exists()
+
+
+def test_backup_nonexistent_file(tmp_path):
+    """Test that backup returns None for nonexistent file."""
+
+    nonexistent = tmp_path / "nonexistent.txt"
+    backup_path = backup_file(nonexistent)
+
+    assert backup_path is None
+
+
+def test_backup_cleanup(backup_test_file, tmp_path):
+    """Test that old backups are cleaned up (keep 5)."""
+    from claude_migrate.utils import get_backup_dir
+
+    # Clean up any existing backups from previous tests
+    backup_dir = get_backup_dir()
+    for old_backup in backup_dir.glob("test.backup_*"):
+        old_backup.unlink()
+
+    # Create 7 backups
+    backups = []
+    for i in range(7):
+        backup_test_file.write_text(f"content {i}")
+        backup_path = backup_file(backup_test_file)
+        backups.append(backup_path)
+
+    # Only last 5 should remain
+    backup_dir = backups[0].parent
+    remaining_backups = list(backup_dir.glob("test.backup_*"))
+
+    assert len(remaining_backups) == 5
+    # Oldest 2 should be deleted
+    assert backups[0] not in remaining_backups
+    assert backups[1] not in remaining_backups

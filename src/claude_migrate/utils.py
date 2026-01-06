@@ -1,8 +1,10 @@
 import os
 import json
 import re
+import shutil
 import textwrap
 import yaml
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, Literal
 
@@ -18,6 +20,7 @@ class Statistics:
             "Agents": {"detected": 0, "converted": 0, "skipped": 0, "failed": 0},
             "Skills": {"detected": 0, "converted": 0, "skipped": 0, "failed": 0},
             "MCP": {"detected": 0, "converted": 0, "skipped": 0, "failed": 0},
+            "Backups": {"detected": 0, "converted": 0, "skipped": 0, "failed": 0},
         }
 
     def record(self, category: str, type_: str, count: int = 1) -> None:
@@ -29,6 +32,9 @@ class Statistics:
                 "skipped": 0,
                 "failed": 0,
             }
+        # Ensure all required keys exist
+        if type_ not in self.stats[category]:
+            self.stats[category][type_] = 0
         self.stats[category][type_] += count
 
     def print_summary(self) -> None:
@@ -47,6 +53,15 @@ class Statistics:
 
 # Global statistics instance
 global_stats = Statistics()
+
+# Ensure Backups category exists (for backward compatibility during development)
+if "Backups" not in global_stats.stats:
+    global_stats.stats["Backups"] = {
+        "detected": 0,
+        "converted": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
 
 
 ClaudeScope = Literal["project", "user"]
@@ -319,3 +334,57 @@ def clean_description(desc: str) -> str:
     ):
         cleaned = cleaned[1:-1]
     return cleaned
+
+
+def get_backup_dir() -> Path:
+    """Get centralized backup directory."""
+    backup_dir = Path.home() / ".claude-migrate" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir
+
+
+def backup_file(file_path: Path) -> Optional[Path]:
+    """Backup a file before overwriting.
+
+    Returns backup path or None if file doesn't exist.
+    Backups stored centrally at ~/.claude-migrate/backups/<relative_path>/
+    """
+    if not file_path.exists():
+        return None
+
+    backup_dir = get_backup_dir()
+
+    # Create relative path structure for organization
+    if file_path.is_relative_to(Path.cwd()):
+        rel_path = file_path.relative_to(Path.cwd())
+    else:
+        # Use user_ prefix for files not in CWD
+        rel_path = Path(f"user_{file_path.name}")
+
+    backup_subdir = backup_dir / rel_path.parent
+    backup_subdir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup_name = f"{file_path.stem}.backup_{timestamp}{file_path.suffix}"
+    backup_path = backup_subdir / backup_name
+
+    try:
+        shutil.copy2(file_path, backup_path)
+        global_stats.record("Backups", "created")
+        cleanup_old_backups(backup_subdir, file_path.stem, keep=5)
+        return backup_path
+    except Exception as e:
+        print(f"Warning: Failed to backup {file_path}: {e}")
+        return None
+
+
+def cleanup_old_backups(backup_dir: Path, file_stem: str, keep: int = 5) -> None:
+    """Keep only most recent N backups for a file."""
+    backups = list(backup_dir.glob(f"{file_stem}.backup_*"))
+    backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    for old_backup in backups[keep:]:
+        try:
+            old_backup.unlink()
+        except Exception as e:
+            print(f"Warning: Failed to delete old backup {old_backup}: {e}")

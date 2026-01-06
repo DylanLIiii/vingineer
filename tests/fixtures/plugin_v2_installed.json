@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "plugins": {
+    "test-plugin@marketplace": [
+      {
+        "name": "test-plugin",
+        "directory": "/tmp/nonexistent",
+        "version": "1.0.0"
+      }
+    ],
+    "mgrep@Mixedbread-Grep": [
+      {
+        "name": "mgrep",
+        "directory": "/tmp/nonexistent",
+        "version": "0.0.0"
+      }
+    ]
+  }
+}

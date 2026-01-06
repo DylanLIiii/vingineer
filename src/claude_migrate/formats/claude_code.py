@@ -13,9 +13,12 @@ from claude_migrate.utils import (
 
 
 class ClaudeLoader:
-    def __init__(self, base_dir: Path, include_plugins: bool = False):
+    def __init__(
+        self, base_dir: Path, include_plugins: bool = False, scope: str = "user"
+    ):
         self.base_dir = base_dir
         self.include_plugins = include_plugins
+        self.scope = scope
 
     def load(self) -> ClaudeConfig:
         """Load all configuration from the base directory."""
@@ -171,6 +174,10 @@ class ClaudeLoader:
         """Load installed plugins from ~/.claude/plugins/installed_plugins.json.
 
         Plugin items are namespaced as `pluginName:<name>` to avoid collisions.
+
+        Handles both formats:
+        - Version 1: {"plugins": [{...}, {...}]}
+        - Version 2: {"version": 2, "plugins": {"plugin@marketplace": [{...}]}}
         """
 
         base = Path.home() / ".claude" / "plugins"
@@ -185,20 +192,46 @@ class ClaudeLoader:
             global_stats.record("Plugins", "failed")
             return ClaudeConfig()
 
-        plugin_entries: list[dict[str, Any]]
-        if isinstance(raw, dict) and isinstance(raw.get("plugins"), list):
-            plugin_entries = raw["plugins"]
+        plugin_entries: list[tuple[str, dict[str, Any]]] = []
+
+        if isinstance(raw, dict):
+            if isinstance(raw.get("plugins"), list):
+                for entry in raw["plugins"]:
+                    if isinstance(entry, dict):
+                        plugin_entries.append((entry.get("name") or "", entry))
+            elif isinstance(raw.get("plugins"), dict):
+                for plugin_key, plugin_list in raw["plugins"].items():
+                    if isinstance(plugin_list, list):
+                        for entry in plugin_list:
+                            if isinstance(entry, dict):
+                                plugin_entries.append((plugin_key, entry))
         elif isinstance(raw, list):
-            plugin_entries = raw
-        else:
-            plugin_entries = []
+            for entry in raw:
+                if isinstance(entry, dict):
+                    plugin_entries.append((entry.get("name") or "", entry))
 
         config = ClaudeConfig()
-        for plugin in plugin_entries:
-            plugin_name = plugin.get("name") or plugin.get("id") or plugin.get("slug")
-            plugin_dir = plugin.get("directory") or plugin.get("path")
+        for plugin_key, plugin in plugin_entries:
+            global_stats.record("Plugins", "detected")
 
-            if not plugin_name or not plugin_dir:
+            plugin_name = plugin.get("name") or plugin.get("id") or plugin.get("slug")
+            if not plugin_name:
+                if plugin_key and "@" in plugin_key:
+                    plugin_name = plugin_key.split("@", 1)[0]
+                elif plugin_key:
+                    plugin_name = plugin_key
+
+            if not plugin_name:
+                global_stats.record("Plugins", "skipped")
+                continue
+
+            plugin_dir = (
+                plugin.get("directory")
+                or plugin.get("path")
+                or plugin.get("installPath")
+            )
+
+            if not plugin_dir:
                 global_stats.record("Plugins", "skipped")
                 continue
 
@@ -206,8 +239,6 @@ class ClaudeLoader:
             if not plugin_path.exists():
                 global_stats.record("Plugins", "skipped")
                 continue
-
-            global_stats.record("Plugins", "detected")
 
             plugin_loader = ClaudeLoader(plugin_path, include_plugins=False)
             plugin_config = plugin_loader.load()
@@ -229,6 +260,42 @@ class ClaudeLoader:
             for name, server in plugin_config.mcp_servers.items():
                 config.mcp_servers[f"{plugin_name}:{name}"] = server
 
+            mcp_from_plugin_json = self.load_mcp_from_plugin_json(
+                plugin_path, plugin_name
+            )
+            config.mcp_servers.update(mcp_from_plugin_json)
+
             global_stats.record("Plugins", "converted")
 
         return config
+
+    def load_mcp_from_plugin_json(
+        self, plugin_path: Path, plugin_name: str
+    ) -> Dict[str, Any]:
+        """Load MCP servers from plugin's .claude-plugin/plugin.json file."""
+        mcp_servers = {}
+        plugin_json_path = plugin_path / ".claude-plugin" / "plugin.json"
+
+        if not plugin_json_path.exists():
+            return mcp_servers
+
+        try:
+            raw = json.loads(plugin_json_path.read_text(encoding="utf-8"))
+            servers_dict = raw.get("mcpServers", {})
+
+            for name, config in servers_dict.items():
+                try:
+                    if config.get("disabled"):
+                        continue
+                    mcp_servers[f"{plugin_name}:{name}"] = MCPServer(**config)
+                    global_stats.record("MCP", "detected")
+                    global_stats.record("MCP", "converted")
+                except Exception as e:
+                    print(
+                        f"Invalid MCP server config '{name}' in {plugin_json_path}: {e}"
+                    )
+                    global_stats.record("MCP", "failed")
+        except Exception as e:
+            print(f"Failed to read plugin.json: {e}")
+
+        return mcp_servers

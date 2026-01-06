@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, Literal
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-import shutil
 
 from claude_migrate.formats.claude_code import ClaudeLoader
 from claude_migrate.formats.opencode import OpenCodeConverter
@@ -13,6 +12,7 @@ from claude_migrate.utils import (
     ensure_dir,
     detect_claude_config,
     get_default_output_dir,
+    sanitize_filename,
 )
 from claude_migrate.models import ClaudeConfig
 
@@ -52,7 +52,9 @@ def convert(
         False, "--dry-run", "-n", help="Preview changes without writing files"
     ),
     force: bool = typer.Option(
-        False, "--force", help="Overwrite existing output directory"
+        False,
+        "--force",
+        help="Overwrite existing files (automatic backups are always created)",
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Enable verbose output"
@@ -88,10 +90,8 @@ def convert(
     console.print(
         f"[cyan]Loading Claude Code configuration from {claude_base}...[/cyan]"
     )
-    if plugins and scope != "project":
-        console.print("[yellow]--plugins requested but ignored (user scope).[/yellow]")
 
-    loader = ClaudeLoader(claude_base, include_plugins=(plugins and scope == "project"))
+    loader = ClaudeLoader(claude_base, include_plugins=plugins, scope=scope)
     config = loader.load()
 
     if verbose:
@@ -100,20 +100,17 @@ def convert(
         console.print(f"[dim]  Found {len(config.skills)} skill(s)[/dim]")
         console.print(f"[dim]  Found {len(config.mcp_servers)} MCP server(s)[/dim]")
 
-    # Check output directory
-    if output.exists():
-        if not force:
-            console.print(
-                f"[red]Error: Output directory '{output}' already exists.[/red]"
-            )
-            console.print("[yellow]Use --force to overwrite.[/yellow]")
-            raise typer.Exit(code=1)
+    merge_mode = output.exists() and not force
 
-        if not dry_run:
-            console.print(
-                f"[yellow]Removing existing output directory: {output}[/yellow]"
-            )
-            shutil.rmtree(output)
+    if merge_mode:
+        console.print("[cyan]Merge mode: Selective overwrite existing files[/cyan]")
+
+    if force and output.exists():
+        console.print(
+            "[yellow]Force mode: Overwriting all matching files (backups will be created).[/yellow]"
+        )
+
+    merge = output.exists() and not force
 
     # Display conversion summary
     console.print(f"\n[cyan]Converting to {target.upper()} format...[/cyan]")
@@ -138,9 +135,9 @@ def convert(
             task = progress.add_task("Converting...", total=None)
 
             if target == "opencode":
-                converter.save(output, format=format)
+                converter.save(output, format=format, merge=merge)
             else:
-                converter.save(output)
+                converter.save(output, merge=merge)
 
             progress.update(task, completed=True)
 
@@ -157,37 +154,146 @@ def _preview_changes(
 ):
     """Preview what would be converted without writing files."""
 
-    # Get the config from converter
     config: ClaudeConfig = converter.config
 
-    console.print("\n[dim]Files that would be created:[/dim]")
+    console.print("\n[dim]Files that would be:[/dim]")
+
+    merge = output.exists()
+    if merge:
+        console.print(
+            "  [yellow](Merge mode: existing files with matching names will be overwritten)[/yellow]"
+        )
+    else:
+        console.print("  [green](New directory: all files will be created)[/green]")
+
+    def count_status(items, get_path, suffix=""):
+        if not items:
+            return 0, 0
+        created = 0
+        overwritten = 0
+        for item in items:
+            path = get_path(item)
+            if merge and path.exists():
+                overwritten += 1
+            else:
+                created += 1
+        return created, overwritten
 
     if target == "opencode":
+        created, overwritten = count_status(
+            config.agents,
+            lambda a: output
+            / "agent"
+            / f"{a.name.replace('/', '_').replace(':', '_')}.md",
+        )
         if config.agents:
-            console.print(f"  [dim]-[/dim] agent/*.md ({len(config.agents)} files)")
-        if config.commands:
-            console.print(f"  [dim]-[/dim] command/*.md ({len(config.commands)} files)")
-        if config.skills:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
             console.print(
-                f"  [dim]-[/dim] skill/*/SKILL.md ({len(config.skills)} files)"
+                f"  agent/*.md ({len(config.agents)} total): {', '.join(status)}"
             )
+
+        created, overwritten = count_status(
+            config.commands,
+            lambda c: output
+            / "command"
+            / f"{c.name.replace('/', '_').replace(':', '_')}.md",
+        )
+        if config.commands:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
+            console.print(
+                f"  command/*.md ({len(config.commands)} total): {', '.join(status)}"
+            )
+
+        created, overwritten = count_status(
+            config.skills, lambda s: output / "skill" / s.name / "SKILL.md"
+        )
+        if config.skills:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
+            console.print(
+                f"  skill/*/SKILL.md ({len(config.skills)} total): {', '.join(status)}"
+            )
+
         if config.mcp_servers:
-            console.print("  [dim]-[/dim] mcp.json")
-    else:  # copilot
+            mcp_path = output / "mcp.json"
+            if mcp_path.exists():
+                console.print(
+                    "  mcp.json: [yellow]overwrite (MCP servers exist)[/yellow]"
+                )
+            else:
+                console.print("  mcp.json: [green]new[/green]")
+    else:
+        created, overwritten = count_status(
+            config.agents,
+            lambda a: output
+            / ".github"
+            / "agents"
+            / f"{sanitize_filename(a.name)}.agent.md",
+        )
         if config.agents:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
             console.print(
-                f"  [dim]-[/dim] .github/agents/*.agent.md ({len(config.agents)} files)"
+                f"  .github/agents/*.agent.md ({len(config.agents)} total): {', '.join(status)}"
             )
+
+        created, overwritten = count_status(
+            config.commands,
+            lambda c: output
+            / ".github"
+            / "prompts"
+            / f"{sanitize_filename(c.name)}.prompt.md",
+        )
         if config.commands:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
             console.print(
-                f"  [dim]-[/dim] .github/prompts/*.prompt.md ({len(config.commands)} files)"
+                f"  .github/prompts/*.prompt.md ({len(config.commands)} total): {', '.join(status)}"
             )
+
+        created, overwritten = count_status(
+            config.skills,
+            lambda s: output
+            / ".github"
+            / "skills"
+            / sanitize_filename(s.name)
+            / "SKILL.md",
+        )
         if config.skills:
+            status = []
+            if created:
+                status.append(f"[green]{created} new[/green]")
+            if overwritten:
+                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
             console.print(
-                f"  [dim]-[/dim] .github/skills/*/SKILL.md ({len(config.skills)} files)"
+                f"  .github/skills/*/SKILL.md ({len(config.skills)} total): {', '.join(status)}"
             )
+
         if config.mcp_servers:
-            console.print("  [dim]-[/dim] mcp.json")
+            mcp_path = output / "mcp.json"
+            if mcp_path.exists():
+                console.print(
+                    "  mcp.json: [yellow]overwrite (MCP servers exist)[/yellow]"
+                )
+            else:
+                console.print("  mcp.json: [green]new[/green]")
 
 
 def _print_instructions(console, target: str, output: Path):

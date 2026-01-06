@@ -3,28 +3,37 @@ from typing import Dict, Any
 import json
 import yaml
 from claude_migrate.models import ClaudeConfig, Agent, Command
-from claude_migrate.utils import ensure_dir, global_stats
+from claude_migrate.utils import ensure_dir, global_stats, backup_file
 
 
 class OpenCodeConverter:
     def __init__(self, config: ClaudeConfig):
         self.config = config
 
-    def save(self, target_dir: Path, format: str = "dir"):
+    def _should_write_file(
+        self, file_path: Path, entity_name: str, merge: bool
+    ) -> bool:
+        if not merge:
+            return True
+        if not file_path.exists():
+            return True
+        return False
+
+    def save(self, target_dir: Path, format: str = "dir", merge: bool = False):
         ensure_dir(target_dir)
 
         if format == "dir":
-            self._save_directory_format(target_dir)
+            self._save_directory_format(target_dir, merge=merge)
         else:
-            self._save_json_format(target_dir)
+            self._save_json_format(target_dir, merge=merge)
 
-    def _save_directory_format(self, target_dir: Path):
-        self._save_agents(target_dir / "agent")
-        self._save_commands(target_dir / "command")
-        self._save_skills(target_dir / "skill")
-        self._save_mcp(target_dir)
+    def _save_directory_format(self, target_dir: Path, merge: bool = False):
+        self._save_agents(target_dir / "agent", merge=merge)
+        self._save_commands(target_dir / "command", merge=merge)
+        self._save_skills(target_dir / "skill", merge=merge)
+        self._save_mcp(target_dir, merge=merge)
 
-    def _save_json_format(self, target_dir: Path):
+    def _save_json_format(self, target_dir: Path, merge: bool = False):
         # Implementation for monolithic JSONC file if needed
         # For now, let's focus on directory format as it's cleaner and preferred
         # But per plan, we keep it simple. If json format is complex, I might skip it for MVP
@@ -55,11 +64,17 @@ class OpenCodeConverter:
             json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"Saved monolithic config to {output_file}")
 
-    def _save_agents(self, agents_dir: Path):
+    def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
             safe_name = agent.name.replace("/", "_").replace(":", "_")
             file_path = agents_dir / f"{safe_name}.md"
+
+            if merge and file_path.exists():
+                global_stats.record("Agents", "skipped")
+                continue
+
+            backup_file(file_path)
 
             fm = {
                 "mode": "subagent",  # Default for converted agents
@@ -89,11 +104,17 @@ class OpenCodeConverter:
             file_path.write_text(content, encoding="utf-8")
             global_stats.record("Agents", "converted")
 
-    def _save_commands(self, commands_dir: Path):
+    def _save_commands(self, commands_dir: Path, merge: bool = False):
         ensure_dir(commands_dir)
         for cmd in self.config.commands:
             safe_name = cmd.name.replace("/", "_").replace(":", "_")
             file_path = commands_dir / f"{safe_name}.md"
+
+            if merge and file_path.exists():
+                global_stats.record("Commands", "skipped")
+                continue
+
+            backup_file(file_path)
 
             fm = {}
             if cmd.description:
@@ -119,12 +140,18 @@ class OpenCodeConverter:
             file_path.write_text(content, encoding="utf-8")
             global_stats.record("Commands", "converted")
 
-    def _save_skills(self, skills_dir: Path):
+    def _save_skills(self, skills_dir: Path, merge: bool = False):
         ensure_dir(skills_dir)
         for skill in self.config.skills:
             skill_folder = skills_dir / skill.name
-            ensure_dir(skill_folder)
             file_path = skill_folder / "SKILL.md"
+
+            if merge and file_path.exists():
+                global_stats.record("Skills", "skipped")
+                continue
+
+            ensure_dir(skill_folder)
+            backup_file(file_path)
 
             fm = {"name": skill.name, "description": skill.description}
             if skill.license:
@@ -136,9 +163,12 @@ class OpenCodeConverter:
             file_path.write_text(content, encoding="utf-8")
             global_stats.record("Skills", "converted")
 
-    def _save_mcp(self, target_dir: Path):
+    def _save_mcp(self, target_dir: Path, merge: bool = False):
         if not self.config.mcp_servers:
             return
+
+        mcp_file = target_dir / "mcp.json"
+        backup_file(mcp_file)
 
         mcp_data = {}
         for name, mcp in self.config.mcp_servers.items():
@@ -160,7 +190,7 @@ class OpenCodeConverter:
             mcp_data[name] = transformed
 
         if mcp_data:
-            with open(target_dir / "mcp.json", "w", encoding="utf-8") as f:
+            with open(mcp_file, "w", encoding="utf-8") as f:
                 json.dump(mcp_data, f, indent=2)
             global_stats.record("MCP", "converted", len(mcp_data))
 
