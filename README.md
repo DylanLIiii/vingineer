@@ -2,13 +2,78 @@
 
 Convert Claude Code configurations (agents, commands, skills, MCPs) to OpenCode and Copilot formats.
 
+## Quick Start with uvx (Recommended)
+
+Run directly from Git without installing:
+
+```bash
+# Use latest version
+uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode
+
+# Pin to specific version (recommended for production)
+uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0 claude-migrate convert opencode
+
+# With options
+uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode --output ./my-configs
+```
+
+**Note**: Replace `YOUR_ORG/YOUR_REPO` with the actual GitHub organization and repository name.
+
+### Persistent Installation from Git
+
+If you want to install the tool permanently and use it without `--from`:
+
+```bash
+# Install latest from main branch
+uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+
+# Install specific version
+uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0
+
+# Now you can use it directly (add to PATH if needed)
+claude-migrate convert opencode
+```
+
+To use after installation, you may need to run:
+```bash
+uv tool update-shell  # or restart your terminal
+```
+
 ## Installation
 
-### Via PyPI
+### uvx (Run without installation)
+
+```bash
+uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode
+```
+
+### uv tool install (Install persistently)
+
+```bash
+uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+
+# May need to update PATH
+uv tool update-shell
+
+# Then use directly
+claude-migrate convert opencode
+```
+
+### From Cloned Repository (Development)
+
+```bash
+git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+cd YOUR_REPO
+pip install -e .
+```
+
+### Via PyPI (For persistent installation)
 
 ```bash
 pip install claude-migrate
 ```
+
+Use this if you want to install the tool permanently on your system.
 
 ### From Source
 
@@ -159,6 +224,48 @@ The tool auto-detects config scope as follows:
 You can override auto-detection with `--source PATH`.
 
 **Plugins** are loaded from `~/.claude/plugins/installed_plugins.json` when you pass `--plugins`. Plugin items are namespaced as `pluginName:itemId` to avoid collisions.
+
+## Versioning
+
+When using uvx from Git, you can pin to specific versions using git tags:
+
+| Command | Description |
+|---------|-------------|
+| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate ...` | Latest on main branch |
+| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0 claude-migrate ...` | Specific version (recommended) |
+| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@main claude-migrate ...` | Latest on main branch (explicit) |
+| `uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git` | Install persistently to system |
+
+**Tip**: Always pin to a specific version tag in production scripts for reproducibility.
+
+### Persistent Installation
+
+To install the tool permanently and use it like any other CLI command:
+
+```bash
+# Install latest version
+uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+
+# Install specific version
+uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0
+
+# Run directly (may need to restart terminal or run `uv tool update-shell`)
+claude-migrate convert opencode
+```
+
+### Creating Releases
+
+To create a new release tag:
+
+```bash
+# Tag the release
+git tag -a v0.2.0 -m "Release v0.2.0"
+
+# Push the tag
+git push origin v0.2.0
+```
+
+The CI/CD workflow will verify the build for the tagged version.
 
 ## CLI Reference
 

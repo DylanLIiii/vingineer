@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv pip install --system build
+
+      - name: Build package
+        run: |
+          uv build
+          ls -la dist/
+
+      - name: Verify wheel and sdist
+        run: |
+          ls dist/*.whl dist/*.tar.gz | wc -l | grep -q "2" && echo "Both wheel and sdist created"
+          ls dist/*.whl | grep -q "^dist/claude_migrate-.*\.whl$" && echo "Wheel valid"
+          ls dist/*.tar.gz | grep -q "^dist/claude_migrate-.*\.tar.gz$" && echo "Source distribution valid"
+
+      - name: Run tests
+        run: uv run pytest tests/ --cov=claude_migrate --cov-report=term-missing --cov-fail-under=60
+
+      - name: Run linting
+        run: uv run ruff check src/ tests/
+
+      - name: Run type checking
+        run: uv run mypy src/claude_migrate/
