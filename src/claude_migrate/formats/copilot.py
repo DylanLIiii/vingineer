@@ -159,32 +159,34 @@ class CopilotConverter:
             return
 
         file_path = target_dir / "mcp.json"
-        backup_file(file_path)
 
-        mcp_data = {}
+        existing_servers = {}
+        if merge and file_path.exists():
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+                    existing_servers = existing_data.get("mcpServers", {})
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        mcp_data = {**existing_servers}
         for name, mcp in self.config.mcp_servers.items():
-            # Copilot/VS Code format
-            # Use original structure mostly
             transformed = mcp.model_dump(
                 exclude={"disabled", "environment"}, exclude_none=True
             )
 
-            # Map 'environment' back to 'env' if needed, though model has 'env' alias
             if mcp.environment and not mcp.env:
                 transformed["env"] = mcp.environment
 
-            # Types
             if mcp.type == "local":
                 transformed["type"] = "stdio"
             elif mcp.type == "remote":
-                # Guess based on URL
-                transformed["type"] = (
-                    "sse"  # Default assumption for remote in VS Code often
-                )
+                transformed["type"] = "sse"
 
             mcp_data[name] = transformed
 
         if mcp_data:
+            backup_file(file_path)
             config = {"mcpServers": mcp_data}
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)

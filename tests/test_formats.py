@@ -612,3 +612,93 @@ def test_plugin_mcp_from_plugin_json(tmp_path, monkeypatch):
 
     assert len(config.mcp_servers) == 1
     assert "test-plugin:test-server" in config.mcp_servers
+
+
+def test_opencode_mcp_merge(tmp_path):
+    """Test that MCP servers are merged when merge=True."""
+    existing_mcp = {
+        "existing-server": {
+            "command": "echo",
+            "args": ["existing"],
+        }
+    }
+    output_dir = tmp_path / "opencode_out"
+    output_dir.mkdir()
+    mcp_file = output_dir / "mcp.json"
+    mcp_file.write_text(json.dumps(existing_mcp), encoding="utf-8")
+
+    config = ClaudeConfig(
+        mcp_servers={
+            "new-server": MCPServer(command="python", args=["server.py"]),
+        }
+    )
+
+    converter = OpenCodeConverter(config)
+    converter.save(output_dir, merge=True)
+
+    result = json.loads(mcp_file.read_text(encoding="utf-8"))
+    assert "existing-server" in result
+    assert "new-server" in result
+
+
+def test_opencode_mcp_merge_disabled_removes(tmp_path):
+    """Test that disabled MCP servers are removed during merge."""
+    existing_mcp = {
+        "to-remove": {
+            "command": "echo",
+            "args": ["remove"],
+        },
+        "to-keep": {
+            "command": "echo",
+            "args": ["keep"],
+        },
+    }
+    output_dir = tmp_path / "opencode_out"
+    output_dir.mkdir()
+    mcp_file = output_dir / "mcp.json"
+    mcp_file.write_text(json.dumps(existing_mcp), encoding="utf-8")
+
+    config = ClaudeConfig(
+        mcp_servers={
+            "new-server": MCPServer(command="python", args=["server.py"]),
+            "to-remove": MCPServer(command="echo", disabled=True),
+        }
+    )
+
+    converter = OpenCodeConverter(config)
+    converter.save(output_dir, merge=True)
+
+    result = json.loads(mcp_file.read_text(encoding="utf-8"))
+    assert "to-keep" in result
+    assert "new-server" in result
+    assert "to-remove" not in result
+
+
+def test_copilot_mcp_merge(tmp_path):
+    """Test that MCP servers are merged for Copilot when merge=True."""
+    existing_mcp = {
+        "mcpServers": {
+            "existing-server": {
+                "command": "echo",
+                "args": ["existing"],
+            }
+        }
+    }
+    output_dir = tmp_path / "copilot_out"
+    output_dir.mkdir()
+    mcp_file = output_dir / "mcp.json"
+    mcp_file.write_text(json.dumps(existing_mcp), encoding="utf-8")
+
+    config = ClaudeConfig(
+        mcp_servers={
+            "new-server": MCPServer(command="python", args=["server.py"], type="local"),
+        }
+    )
+
+    converter = CopilotConverter(config)
+    converter.save(output_dir, merge=True)
+
+    result = json.loads(mcp_file.read_text(encoding="utf-8"))
+    assert "existing-server" in result["mcpServers"]
+    assert "new-server" in result["mcpServers"]
+    assert result["mcpServers"]["new-server"]["type"] == "stdio"

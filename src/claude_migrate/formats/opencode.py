@@ -168,20 +168,25 @@ class OpenCodeConverter:
             return
 
         mcp_file = target_dir / "mcp.json"
-        backup_file(mcp_file)
 
-        mcp_data = {}
+        existing_mcp = {}
+        if merge and mcp_file.exists():
+            try:
+                with open(mcp_file, "r", encoding="utf-8") as f:
+                    existing_mcp = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        mcp_data = {**existing_mcp}
         for name, mcp in self.config.mcp_servers.items():
             if mcp.disabled:
+                mcp_data.pop(name, None)
                 continue
 
-            # Transform to OpenCode format
-            # OpenCode uses 'environment' key usually
             transformed = mcp.model_dump(exclude={"disabled", "env"}, exclude_none=True)
             if mcp.env:
                 transformed["environment"] = mcp.env
 
-            # Adjust types if needed
             if mcp.type in ["http", "sse"]:
                 transformed["type"] = "remote"
             elif mcp.type == "stdio":
@@ -190,6 +195,7 @@ class OpenCodeConverter:
             mcp_data[name] = transformed
 
         if mcp_data:
+            backup_file(mcp_file)
             with open(mcp_file, "w", encoding="utf-8") as f:
                 json.dump(mcp_data, f, indent=2)
             global_stats.record("MCP", "converted", len(mcp_data))
