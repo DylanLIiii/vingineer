@@ -8,13 +8,13 @@ Run directly from Git without installing:
 
 ```bash
 # Use latest version
-uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode
+uvx --from git+https://github.com/DylanLIiii/vingineer.git claude-migrate convert opencode
 
 # Pin to specific version (recommended for production)
-uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0 claude-migrate convert opencode
+uvx --from git+https://github.com/DylanLIiii/vingineer.git@v0.1.0 claude-migrate convert opencode
 
 # With options
-uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode --output ./my-configs
+uvx --from git+https://github.com/DylanLIiii/vingineer.git claude-migrate convert opencode --output ./my-configs
 ```
 
 **Note**: Replace `YOUR_ORG/YOUR_REPO` with the actual GitHub organization and repository name.
@@ -25,10 +25,10 @@ If you want to install the tool permanently and use it without `--from`:
 
 ```bash
 # Install latest from main branch
-uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+uv tool install git+https://github.com/DylanLIiii/vingineer.git
 
 # Install specific version
-uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0
+uv tool install git+https://github.com/DylanLIiii/vingineer.git@v0.1.0
 
 # Now you can use it directly (add to PATH if needed)
 claude-migrate convert opencode
@@ -44,13 +44,13 @@ uv tool update-shell  # or restart your terminal
 ### uvx (Run without installation)
 
 ```bash
-uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate convert opencode
+uvx --from git+https://github.com/DylanLIiii/vingineer.git claude-migrate convert opencode
 ```
 
 ### uv tool install (Install persistently)
 
 ```bash
-uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+uv tool install git+https://github.com/DylanLIiii/vingineer.git
 
 # May need to update PATH
 uv tool update-shell
@@ -62,7 +62,7 @@ claude-migrate convert opencode
 ### From Cloned Repository (Development)
 
 ```bash
-git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+git clone https://github.com/DylanLIiii/vingineer.git
 cd YOUR_REPO
 pip install -e .
 ```
@@ -252,10 +252,10 @@ When using uvx from Git, you can pin to specific versions using git tags:
 
 | Command | Description |
 |---------|-------------|
-| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git claude-migrate ...` | Latest on main branch |
-| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0 claude-migrate ...` | Specific version (recommended) |
-| `uvx --from git+https://github.com/YOUR_ORG/YOUR_REPO.git@main claude-migrate ...` | Latest on main branch (explicit) |
-| `uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git` | Install persistently to system |
+| `uvx --from git+https://github.com/DylanLIiii/vingineer.git claude-migrate ...` | Latest on main branch |
+| `uvx --from git+https://github.com/DylanLIiii/vingineer.git@v0.1.0 claude-migrate ...` | Specific version (recommended) |
+| `uvx --from git+https://github.com/DylanLIiii/vingineer.git@main claude-migrate ...` | Latest on main branch (explicit) |
+| `uv tool install git+https://github.com/DylanLIiii/vingineer.git` | Install persistently to system |
 
 **Tip**: Always pin to a specific version tag in production scripts for reproducibility.
 
@@ -265,10 +265,10 @@ To install the tool permanently and use it like any other CLI command:
 
 ```bash
 # Install latest version
-uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git
+uv tool install git+https://github.com/DylanLIiii/vingineer.git
 
 # Install specific version
-uv tool install git+https://github.com/YOUR_ORG/YOUR_REPO.git@v0.1.0
+uv tool install git+https://github.com/DylanLIiii/vingineer.git@v0.1.0
 
 # Run directly (may need to restart terminal or run `uv tool update-shell`)
 claude-migrate convert opencode
