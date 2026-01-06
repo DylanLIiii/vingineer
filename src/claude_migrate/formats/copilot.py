@@ -85,6 +85,10 @@ class CopilotConverter:
             if agent.model:
                 fm["model"] = agent.model
 
+            # Add VS Code Copilot defaults for full spec compliance
+            fm["infer"] = True
+            fm["target"] = "vscode"
+
             # Tools
             if agent.tools:
                 tools = []

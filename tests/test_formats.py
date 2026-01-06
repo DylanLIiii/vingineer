@@ -152,6 +152,53 @@ def test_copilot_converter_sanitizes_filenames(tmp_path):
     assert mcp_data["mcpServers"]["srv"]["type"] == "stdio"
 
 
+def test_copilot_agent_defaults(tmp_path):
+    """Test that agent files include VS Code Copilot default fields."""
+    config = ClaudeConfig(
+        agents=[
+            Agent(
+                name="test-agent",
+                description="Test Description",
+                prompt="Agent prompt",
+                model="claude-3-opus-20240229",
+                tools=["search", "fetch"],
+            )
+        ],
+        commands=[Command(name="test-cmd", body="Body")],
+        skills=[Skill(name="test-skill", body="Skill body")],
+        mcp_servers={"srv": MCPServer(command="echo", type="local")},
+    )
+
+    converter = CopilotConverter(config)
+    output_dir = tmp_path / "copilot_out"
+    converter.save(output_dir)
+
+    # Verify agent file exists
+    agent_file = output_dir / ".github" / "agents" / "test-agent.agent.md"
+    assert agent_file.exists()
+
+    # Verify content includes VS Code defaults
+    content = agent_file.read_text(encoding="utf-8")
+
+    # Check for required fields
+    assert "name: test-agent" in content
+    assert "description: Test Description" in content
+    assert "model: claude-3-opus-20240229" in content
+
+    # Check for VS Code Copilot default fields
+    assert "infer: true" in content
+    assert "target: vscode" in content
+
+    # Check for tools
+    assert "tools:" in content
+    assert "- search" in content
+    assert "- fetch" in content
+
+    # Verify YAML frontmatter structure
+    assert content.startswith("---")
+    assert "Agent prompt" in content
+
+
 @pytest.fixture
 def plugin_v2_installed(tmp_path):
     """Create mock installed_plugins.json with version 2 format."""

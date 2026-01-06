@@ -136,12 +136,33 @@ claude-migrate convert opencode --plugins
 
 | Type | Claude Code Location | OpenCode | Copilot |
 |------|---------------------|------------|----------|
-| **Agents** | `~/.claude/agents/*.md` or `./.claude/agents/*.md`<br/>(or plugins, namespaced as `pluginName:agent`) | `agent/*.md` | `.github/agents/*.agent.md` |
+| **Agents** | `~/.claude/agents/*.md` or `./.claude/agents/*.md`<br/>(or plugins, namespaced as `pluginName:agent`) | `agent/*.md` | `.github/agents/*.agent.md` (with `infer: true`, `target: vscode`) |
 | **Commands** | `~/.claude/commands/*.md` or `./.claude/commands/*.md`<br/>(or plugins, namespaced as `pluginName:command`) | `command/*.md` | `.github/prompts/*.prompt.md` |
 | **Skills** | `~/.claude/skills/*/SKILL.md` or `./.claude/skills/*/SKILL.md`<br/>(or plugins, namespaced as `pluginName:skill`) | `skill/*/SKILL.md` | `.github/skills/*/SKILL.md` |
 | **MCP Servers** | `~/.claude/.mcp.json` or `./.claude/.mcp.json`<br/>(or plugins, namespaced as `pluginName:server`) | `mcp.json` | `mcp.json` |
 
 **Note**: Use `--plugins` flag to include installed Claude plugins (agents, commands, skills, MCPs from `~/.claude/plugins/`).
+
+## VS Code Copilot Compliance
+
+When converting to Copilot format, the tool generates configurations compatible with VS Code's [Copilot customization specification](https://code.visualstudio.com/docs/copilot/customization/overview).
+
+### Generated Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Prompt Files** | ✅ Full support | Generates `.github/prompts/*.prompt.md` with `name`, `description`, `model`, `agent` fields |
+| **Custom Agents** | ✅ Full support | Generates `.github/agents/*.agent.md` with `infer: true` and `target: vscode` defaults |
+| **Agent Skills** | ✅ Full support | Generates `.github/skills/*/SKILL.md` following Agent Skills standard |
+| **MCP Servers** | ✅ Full support | Generates `mcp.json` with type mapping (`local`→`stdio`, `remote`→`sse`) |
+
+### Known Limitations
+
+The following VS Code Copilot features are not currently supported because Claude Code doesn't provide equivalent fields:
+- `envFile` for MCP servers (use `env` field instead)
+- `inputs` section for MCP server variables (use environment variables directly)
+- Custom agent `handoffs` (manual configuration required)
+- `.github/copilot-instructions.md` (create manually if needed)
 
 ## Using the Output
 
