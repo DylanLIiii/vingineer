@@ -28,7 +28,7 @@ jobs:
       - name: Run OpenCode
         uses: sst/opencode/github@latest
         env:
-          OPENCODE_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+            MINIMAX_CN_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
         with:
           model: minimax-cn/minimax-m2.1
           # share: true
