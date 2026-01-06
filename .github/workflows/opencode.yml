@@ -25,21 +25,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Create OpenCode auth config
-        run: |
-          mkdir -p ~/.local/share/opencode
-          cat > ~/.local/share/opencode/auth.json << 'EOF'
-          {
-            "minimax-cn": {
-              "type": "api",
-              "key": "${{ secrets.MINIMAX_API_KEY }}"
-            }
-          }
-          EOF
-
       - name: Run OpenCode
         uses: sst/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: minimax-cn/minimax-m2.1
+          model: opencode/glm-4.7-free
           # share: true
           # github_token: xxxx
