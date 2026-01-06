@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mcp-test-1": {
+      "command": "python",
+      "args": ["-m", "server"],
+      "env": {"API_KEY": "${API_KEY:-default}"}
+    },
+    "mcp-test-2": {
+      "command": "node",
+      "args": ["server.js"]
+    }
+  }
+}

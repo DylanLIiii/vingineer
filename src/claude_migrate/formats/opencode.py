@@ -1,0 +1,189 @@
+from pathlib import Path
+from typing import Dict, Any
+import json
+import yaml
+from claude_migrate.models import ClaudeConfig, Agent, Command
+from claude_migrate.utils import ensure_dir, global_stats
+
+
+class OpenCodeConverter:
+    def __init__(self, config: ClaudeConfig):
+        self.config = config
+
+    def save(self, target_dir: Path, format: str = "dir"):
+        ensure_dir(target_dir)
+
+        if format == "dir":
+            self._save_directory_format(target_dir)
+        else:
+            self._save_json_format(target_dir)
+
+    def _save_directory_format(self, target_dir: Path):
+        self._save_agents(target_dir / "agent")
+        self._save_commands(target_dir / "command")
+        self._save_skills(target_dir / "skill")
+        self._save_mcp(target_dir)
+
+    def _save_json_format(self, target_dir: Path):
+        # Implementation for monolithic JSONC file if needed
+        # For now, let's focus on directory format as it's cleaner and preferred
+        # But per plan, we keep it simple. If json format is complex, I might skip it for MVP
+        # unless strictly required. The plan says "Convert... to OpenCode format (both dir and json)".
+        # I'll implement a basic version.
+
+        data = {"agent": {}, "command": {}, "mcp": {}}
+
+        # Convert Agents
+        for agent in self.config.agents:
+            data["agent"][agent.name] = self._convert_agent_to_dict(agent)
+
+        # Convert Commands
+        for cmd in self.config.commands:
+            data["command"][cmd.name] = self._convert_command_to_dict(cmd)
+
+        # Convert MCP
+        for name, mcp in self.config.mcp_servers.items():
+            if not mcp.disabled:
+                data["mcp"][name] = mcp.model_dump(exclude_none=True)
+
+        # Note: Skills are typically not in the JSONC config in the same way,
+        # or require conversion to commands/agents. For simplicity,
+        # let's assume JSON export focuses on core config.
+
+        output_file = target_dir / "opencode.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"Saved monolithic config to {output_file}")
+
+    def _save_agents(self, agents_dir: Path):
+        ensure_dir(agents_dir)
+        for agent in self.config.agents:
+            safe_name = agent.name.replace("/", "_").replace(":", "_")
+            file_path = agents_dir / f"{safe_name}.md"
+
+            fm = {
+                "mode": "subagent",  # Default for converted agents
+                "description": agent.description,
+            }
+            if agent.model:
+                fm["model"] = agent.model
+            if agent.temperature:
+                fm["temperature"] = agent.temperature
+            if agent.maxSteps:
+                fm["maxSteps"] = agent.maxSteps
+
+            if agent.tools:
+                # OpenCode expects tools as specific format or dict
+                if isinstance(agent.tools, list):
+                    fm["tools"] = {t: True for t in agent.tools}
+                elif isinstance(agent.tools, dict):
+                    fm["tools"] = agent.tools
+                elif isinstance(agent.tools, str):
+                    fm["tools"] = {
+                        t.strip(): True for t in agent.tools.split(",") if t.strip()
+                    }
+
+            fm_str = yaml.dump(fm, sort_keys=False, allow_unicode=True).strip()
+            content = f"---\n{fm_str}\n---\n{agent.prompt}\n"
+
+            file_path.write_text(content, encoding="utf-8")
+            global_stats.record("Agents", "converted")
+
+    def _save_commands(self, commands_dir: Path):
+        ensure_dir(commands_dir)
+        for cmd in self.config.commands:
+            safe_name = cmd.name.replace("/", "_").replace(":", "_")
+            file_path = commands_dir / f"{safe_name}.md"
+
+            fm = {}
+            if cmd.description:
+                fm["description"] = cmd.description
+            if cmd.agent:
+                fm["agent"] = cmd.agent
+            if cmd.model:
+                fm["model"] = cmd.model
+            if cmd.subtask:
+                fm["subtask"] = True
+            if cmd.argument_hint:
+                fm["argumentHint"] = cmd.argument_hint
+
+            # OpenCode Template Format
+            template = (
+                f"<command-instruction>\n{cmd.body}\n</command-instruction>\n\n"
+                f"<user-request>\n$ARGUMENTS\n</user-request>"
+            )
+
+            fm_str = yaml.dump(fm, sort_keys=False).strip()
+            content = f"---\n{fm_str}\n---\n{template}\n"
+
+            file_path.write_text(content, encoding="utf-8")
+            global_stats.record("Commands", "converted")
+
+    def _save_skills(self, skills_dir: Path):
+        ensure_dir(skills_dir)
+        for skill in self.config.skills:
+            skill_folder = skills_dir / skill.name
+            ensure_dir(skill_folder)
+            file_path = skill_folder / "SKILL.md"
+
+            fm = {"name": skill.name, "description": skill.description}
+            if skill.license:
+                fm["license"] = skill.license
+
+            fm_str = yaml.dump(fm, sort_keys=False).strip()
+            content = f"---\n{fm_str}\n---\n{skill.body}\n"
+
+            file_path.write_text(content, encoding="utf-8")
+            global_stats.record("Skills", "converted")
+
+    def _save_mcp(self, target_dir: Path):
+        if not self.config.mcp_servers:
+            return
+
+        mcp_data = {}
+        for name, mcp in self.config.mcp_servers.items():
+            if mcp.disabled:
+                continue
+
+            # Transform to OpenCode format
+            # OpenCode uses 'environment' key usually
+            transformed = mcp.model_dump(exclude={"disabled", "env"}, exclude_none=True)
+            if mcp.env:
+                transformed["environment"] = mcp.env
+
+            # Adjust types if needed
+            if mcp.type in ["http", "sse"]:
+                transformed["type"] = "remote"
+            elif mcp.type == "stdio":
+                transformed["type"] = "local"
+
+            mcp_data[name] = transformed
+
+        if mcp_data:
+            with open(target_dir / "mcp.json", "w", encoding="utf-8") as f:
+                json.dump(mcp_data, f, indent=2)
+            global_stats.record("MCP", "converted", len(mcp_data))
+
+    def _convert_agent_to_dict(self, agent: Agent) -> Dict[str, Any]:
+        d = agent.model_dump(
+            exclude={"name", "original_description", "prompt"}, exclude_none=True
+        )
+        d["mode"] = "subagent"
+        d["prompt"] = agent.prompt
+        # Handle tools conversion for dict format same as file format
+        if agent.tools:
+            if isinstance(agent.tools, list):
+                d["tools"] = {t: True for t in agent.tools}
+            elif isinstance(agent.tools, str):
+                d["tools"] = {
+                    t.strip(): True for t in agent.tools.split(",") if t.strip()
+                }
+        return d
+
+    def _convert_command_to_dict(self, cmd: Command) -> Dict[str, Any]:
+        d = cmd.model_dump(exclude={"name", "body"}, exclude_none=True)
+        d["template"] = (
+            f"<command-instruction>\n{cmd.body}\n</command-instruction>\n\n"
+            f"<user-request>\n$ARGUMENTS\n</user-request>"
+        )
+        return d
