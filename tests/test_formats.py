@@ -95,9 +95,9 @@ def test_opencode_converter(tmp_path):
     content = cmd_file.read_text(encoding="utf-8")
     assert "<command-instruction>" in content
 
-    # Verify Skill
+    # Verify Skill - Should NOT exist for OpenCode
     skill_file = output_dir / "skill" / "test-skill" / "SKILL.md"
-    assert skill_file.exists()
+    assert not skill_file.exists()
 
     # Verify MCP
     mcp_file = output_dir / "mcp.json"

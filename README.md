@@ -138,7 +138,7 @@ claude-migrate convert opencode --plugins
 |------|---------------------|------------|----------|
 | **Agents** | `~/.claude/agents/*.md` or `./.claude/agents/*.md`<br/>(or plugins, namespaced as `pluginName:agent`) | `agent/*.md` | `.github/agents/*.agent.md` (with `infer: true`, `target: vscode`) |
 | **Commands** | `~/.claude/commands/*.md` or `./.claude/commands/*.md`<br/>(or plugins, namespaced as `pluginName:command`) | `command/*.md` | `.github/prompts/*.prompt.md` |
-| **Skills** | `~/.claude/skills/*/SKILL.md` or `./.claude/skills/*/SKILL.md`<br/>(or plugins, namespaced as `pluginName:skill`) | `skill/*/SKILL.md` | `.github/skills/*/SKILL.md` |
+| **Skills** | `~/.claude/skills/*/SKILL.md` or `./.claude/skills/*/SKILL.md`<br/>(or plugins, namespaced as `pluginName:skill`) | N/A (Natively supported) | `.github/skills/*/SKILL.md` |
 | **MCP Servers** | `~/.claude/.mcp.json` or `./.claude/.mcp.json`<br/>(or plugins, namespaced as `pluginName:server`) | `mcp.json` | `mcp.json` |
 
 **Note**: Use `--plugins` flag to include installed Claude plugins (agents, commands, skills, MCPs from `~/.claude/plugins/`).
