@@ -9,6 +9,10 @@ Instructions for AI agents working on the `claude-migrate` repository.
 **Python Version**: 3.11+
 **Dependencies**: typer, pydantic, pyyaml, rich, pytest, ruff, mypy
 
+## Design Decisions
+
+*   **OpenCode Skills**: OpenCode natively supports Claude skills in `.claude/skills` and `~/.claude/skills`. Therefore, `claude-migrate` intentionally does *not* convert skills to OpenCode format to avoid redundancy. Agents should not re-implement skill conversion for OpenCode.
+
 ## Build Commands
 
 ```bash

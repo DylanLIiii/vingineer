@@ -212,19 +212,6 @@ def _preview_changes(
                 f"  command/*.md ({len(config.commands)} total): {', '.join(status)}"
             )
 
-        created, overwritten = count_status(
-            config.skills, lambda s: output / "skill" / s.name / "SKILL.md"
-        )
-        if config.skills:
-            status = []
-            if created:
-                status.append(f"[green]{created} new[/green]")
-            if overwritten:
-                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
-            console.print(
-                f"  skill/*/SKILL.md ({len(config.skills)} total): {', '.join(status)}"
-            )
-
         if config.mcp_servers:
             mcp_path = output / "mcp.json"
             if mcp_path.exists():
@@ -304,6 +291,9 @@ def _print_instructions(console, target: str, output: Path):
         console.print("  To use with OpenCode:")
         console.print(f"    1. Use config at: {output}")
         console.print("       (expected locations: ./.opencode or ~/.config/opencode)")
+        console.print(
+            "    2. Note: Skills are natively supported via .claude/skills and do not need conversion."
+        )
         return
 
     # copilot
