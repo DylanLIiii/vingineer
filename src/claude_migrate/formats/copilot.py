@@ -1,7 +1,6 @@
 from pathlib import Path
 import json
 import yaml
-import shutil
 from claude_migrate.models import ClaudeConfig
 from claude_migrate.utils import (
     ensure_dir,
@@ -31,7 +30,6 @@ class CopilotConverter:
 
         self._save_prompts(github_dir / "prompts", merge=merge)
         self._save_agents(github_dir / "agents", merge=merge)
-        self._save_skills(github_dir / "skills", merge=merge)
         self._save_mcp(target_dir, merge=merge)
 
     def _save_prompts(self, prompts_dir: Path, merge: bool = False):
@@ -107,52 +105,6 @@ class CopilotConverter:
 
             file_path.write_text(content, encoding="utf-8")
             global_stats.record("Agents", "converted")
-
-    def _save_skills(self, skills_dir: Path, merge: bool = False):
-        ensure_dir(skills_dir)
-        for skill in self.config.skills:
-            safe_name = sanitize_filename(skill.name)
-            target_skill_path = skills_dir / safe_name
-
-            if merge and target_skill_path.exists():
-                global_stats.record("Skills", "skipped")
-                continue
-
-            if skill.path and Path(skill.path).exists():
-                # Backup existing SKILL.md if it exists
-                target_md = target_skill_path / "SKILL.md"
-                backup_file(target_md)
-
-                # Copy whole directory, excluding existing .backups
-                if target_skill_path.exists():
-                    # Remove old directory first (but backups are already made)
-                    shutil.rmtree(target_skill_path)
-                shutil.copytree(skill.path, target_skill_path)
-
-                # Update SKILL.md to ensure consistency
-                if target_md.exists():
-                    # We might want to ensure description/name are clean, but let's trust copy for now
-                    # unless we want to enforce frontmatter updates.
-                    # The original script updated frontmatter, so let's do a light pass if needed.
-                    pass
-            else:
-                # Recreate from data
-                ensure_dir(target_skill_path)
-                target_md = target_skill_path / "SKILL.md"
-
-                backup_file(target_md)
-
-                fm = {"name": skill.name}
-                if skill.description:
-                    fm["description"] = clean_description(skill.description)
-                if skill.license:
-                    fm["license"] = skill.license
-
-                fm_str = yaml.dump(fm, sort_keys=False).strip()
-                content = f"---\n{fm_str}\n---\n\n{skill.body}\n"
-                target_md.write_text(content, encoding="utf-8")
-
-            global_stats.record("Skills", "converted")
 
     def _save_mcp(self, target_dir: Path, merge: bool = False):
         if not self.config.mcp_servers:

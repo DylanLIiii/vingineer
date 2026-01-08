@@ -30,7 +30,6 @@ class OpenCodeConverter:
     def _save_directory_format(self, target_dir: Path, merge: bool = False):
         self._save_agents(target_dir / "agent", merge=merge)
         self._save_commands(target_dir / "command", merge=merge)
-        self._save_skills(target_dir / "skill", merge=merge)
         self._save_mcp(target_dir, merge=merge)
 
     def _save_json_format(self, target_dir: Path, merge: bool = False):
@@ -139,29 +138,6 @@ class OpenCodeConverter:
 
             file_path.write_text(content, encoding="utf-8")
             global_stats.record("Commands", "converted")
-
-    def _save_skills(self, skills_dir: Path, merge: bool = False):
-        ensure_dir(skills_dir)
-        for skill in self.config.skills:
-            skill_folder = skills_dir / skill.name
-            file_path = skill_folder / "SKILL.md"
-
-            if merge and file_path.exists():
-                global_stats.record("Skills", "skipped")
-                continue
-
-            ensure_dir(skill_folder)
-            backup_file(file_path)
-
-            fm = {"name": skill.name, "description": skill.description}
-            if skill.license:
-                fm["license"] = skill.license
-
-            fm_str = yaml.dump(fm, sort_keys=False).strip()
-            content = f"---\n{fm_str}\n---\n{skill.body}\n"
-
-            file_path.write_text(content, encoding="utf-8")
-            global_stats.record("Skills", "converted")
 
     def _save_mcp(self, target_dir: Path, merge: bool = False):
         if not self.config.mcp_servers:
