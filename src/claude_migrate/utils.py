@@ -385,15 +385,16 @@ def get_output_path(
     if source_path:
         # Remove the .md extension and use the directory structure
         source_path_obj = Path(source_path)
-        # Get parent directory path and filename without extension
+        filename = f"{source_path_obj.stem}{extension}"
+        
+        # Create subdirectories if path has parent directories
         if source_path_obj.parent != Path('.'):
-            # Has subdirectories - preserve them
-            subdir = base_dir / source_path_obj.parent
-            ensure_dir(subdir)
-            return subdir / f"{source_path_obj.stem}{extension}"
+            output_dir = base_dir / source_path_obj.parent
+            ensure_dir(output_dir)
+            return output_dir / filename
         else:
             # No subdirectories - save at root
-            return base_dir / f"{source_path_obj.stem}{extension}"
+            return base_dir / filename
     else:
         # Fallback to sanitized name for backward compatibility
         safe_name = sanitize_filename(fallback_name)
