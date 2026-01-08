@@ -53,6 +53,8 @@ class ClaudeLoader:
                 fm, body = parse_frontmatter(content)
 
                 name = fm.get("name", file_path.stem)
+                # Calculate relative path from agents directory
+                relative_path = file_path.relative_to(agents_dir)
                 agents.append(
                     Agent(
                         name=name,
@@ -62,6 +64,7 @@ class ClaudeLoader:
                         prompt=body.strip(),
                         temperature=fm.get("temperature"),
                         maxSteps=fm.get("maxSteps"),
+                        source_path=str(relative_path),
                     )
                 )
                 global_stats.record("Agents", "detected")
@@ -90,6 +93,8 @@ class ClaudeLoader:
                     continue
 
                 name = fm.get("name", file_path.stem)
+                # Calculate relative path from commands directory
+                relative_path = file_path.relative_to(commands_dir)
                 commands.append(
                     Command(
                         name=name,
@@ -99,6 +104,7 @@ class ClaudeLoader:
                         agent=fm.get("agent"),
                         argument_hint=fm.get("argument-hint"),
                         subtask=fm.get("subtask"),
+                        source_path=str(relative_path),
                     )
                 )
                 global_stats.record("Commands", "detected")

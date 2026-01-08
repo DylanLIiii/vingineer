@@ -35,8 +35,23 @@ class CopilotConverter:
     def _save_prompts(self, prompts_dir: Path, merge: bool = False):
         ensure_dir(prompts_dir)
         for cmd in self.config.commands:
-            safe_name = sanitize_filename(cmd.name)
-            file_path = prompts_dir / f"{safe_name}.prompt.md"
+            # Use source_path if available to preserve directory hierarchy
+            if cmd.source_path:
+                # Remove the .md extension and use the directory structure
+                source_path_obj = Path(cmd.source_path)
+                # Get parent directory path and filename without extension
+                if source_path_obj.parent != Path('.'):
+                    # Has subdirectories - preserve them
+                    subdir = prompts_dir / source_path_obj.parent
+                    ensure_dir(subdir)
+                    file_path = subdir / f"{source_path_obj.stem}.prompt.md"
+                else:
+                    # No subdirectories - save at root
+                    file_path = prompts_dir / f"{source_path_obj.stem}.prompt.md"
+            else:
+                # Fallback to old behavior for backward compatibility
+                safe_name = sanitize_filename(cmd.name)
+                file_path = prompts_dir / f"{safe_name}.prompt.md"
 
             if merge and file_path.exists():
                 global_stats.record("Prompts", "skipped")
@@ -67,8 +82,23 @@ class CopilotConverter:
     def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
-            safe_name = sanitize_filename(agent.name)
-            file_path = agents_dir / f"{safe_name}.agent.md"
+            # Use source_path if available to preserve directory hierarchy
+            if agent.source_path:
+                # Remove the .md extension and use the directory structure
+                source_path_obj = Path(agent.source_path)
+                # Get parent directory path and filename without extension
+                if source_path_obj.parent != Path('.'):
+                    # Has subdirectories - preserve them
+                    subdir = agents_dir / source_path_obj.parent
+                    ensure_dir(subdir)
+                    file_path = subdir / f"{source_path_obj.stem}.agent.md"
+                else:
+                    # No subdirectories - save at root
+                    file_path = agents_dir / f"{source_path_obj.stem}.agent.md"
+            else:
+                # Fallback to old behavior for backward compatibility
+                safe_name = sanitize_filename(agent.name)
+                file_path = agents_dir / f"{safe_name}.agent.md"
 
             if merge and file_path.exists():
                 global_stats.record("Agents", "skipped")

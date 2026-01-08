@@ -66,8 +66,23 @@ class OpenCodeConverter:
     def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
-            safe_name = agent.name.replace("/", "_").replace(":", "_")
-            file_path = agents_dir / f"{safe_name}.md"
+            # Use source_path if available to preserve directory hierarchy
+            if agent.source_path:
+                # Remove the .md extension and use the directory structure
+                source_path_obj = Path(agent.source_path)
+                # Get parent directory path and filename without extension
+                if source_path_obj.parent != Path('.'):
+                    # Has subdirectories - preserve them
+                    subdir = agents_dir / source_path_obj.parent
+                    ensure_dir(subdir)
+                    file_path = subdir / f"{source_path_obj.stem}.md"
+                else:
+                    # No subdirectories - save at root
+                    file_path = agents_dir / f"{source_path_obj.stem}.md"
+            else:
+                # Fallback to old behavior for backward compatibility
+                safe_name = agent.name.replace("/", "_").replace(":", "_")
+                file_path = agents_dir / f"{safe_name}.md"
 
             if merge and file_path.exists():
                 global_stats.record("Agents", "skipped")
@@ -106,8 +121,23 @@ class OpenCodeConverter:
     def _save_commands(self, commands_dir: Path, merge: bool = False):
         ensure_dir(commands_dir)
         for cmd in self.config.commands:
-            safe_name = cmd.name.replace("/", "_").replace(":", "_")
-            file_path = commands_dir / f"{safe_name}.md"
+            # Use source_path if available to preserve directory hierarchy
+            if cmd.source_path:
+                # Remove the .md extension and use the directory structure
+                source_path_obj = Path(cmd.source_path)
+                # Get parent directory path and filename without extension
+                if source_path_obj.parent != Path('.'):
+                    # Has subdirectories - preserve them
+                    subdir = commands_dir / source_path_obj.parent
+                    ensure_dir(subdir)
+                    file_path = subdir / f"{source_path_obj.stem}.md"
+                else:
+                    # No subdirectories - save at root
+                    file_path = commands_dir / f"{source_path_obj.stem}.md"
+            else:
+                # Fallback to old behavior for backward compatibility
+                safe_name = cmd.name.replace("/", "_").replace(":", "_")
+                file_path = commands_dir / f"{safe_name}.md"
 
             if merge and file_path.exists():
                 global_stats.record("Commands", "skipped")
