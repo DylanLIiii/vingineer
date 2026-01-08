@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 import json
 import yaml
 from claude_migrate.models import ClaudeConfig, Agent, Command
@@ -167,37 +167,61 @@ class OpenCodeConverter:
         if not self.config.mcp_servers:
             return
 
-        mcp_file = target_dir / "mcp.json"
+        mcp_file = target_dir / "opencode.jsonc"
 
-        existing_mcp = {}
+        existing_config = {}
         if merge and mcp_file.exists():
             try:
                 with open(mcp_file, "r", encoding="utf-8") as f:
-                    existing_mcp = json.load(f)
+                    existing_config = json.load(f)
             except (json.JSONDecodeError, IOError):
                 pass
 
+        existing_mcp = existing_config.get("mcp", {})
         mcp_data = {**existing_mcp}
         for name, mcp in self.config.mcp_servers.items():
             if mcp.disabled:
                 mcp_data.pop(name, None)
                 continue
 
-            transformed = mcp.model_dump(exclude={"disabled", "env"}, exclude_none=True)
-            if mcp.env:
-                transformed["environment"] = mcp.env
+            transformed: Dict[str, Any] = {}
 
             if mcp.type in ["http", "sse"]:
                 transformed["type"] = "remote"
+                transformed["url"] = mcp.url
             elif mcp.type == "stdio":
                 transformed["type"] = "local"
+                cmd_list: List[str] = []
+                if mcp.command:
+                    if isinstance(mcp.command, str):
+                        cmd_list.append(mcp.command)
+                    else:
+                        cmd_list.extend(mcp.command)
+                if mcp.args:
+                    cmd_list.extend(mcp.args)
+                transformed["command"] = cmd_list
+            else:
+                transformed["type"] = mcp.type
+                if mcp.command:
+                    transformed["command"] = mcp.command
 
+            if mcp.env:
+                transformed["environment"] = mcp.env
+
+            if mcp.headers:
+                transformed["headers"] = mcp.headers
+
+            transformed["enabled"] = True
             mcp_data[name] = transformed
 
         if mcp_data:
+            output_config = {
+                "$schema": "https://opencode.ai/config.json",
+                "mcp": mcp_data,
+            }
             backup_file(mcp_file)
             with open(mcp_file, "w", encoding="utf-8") as f:
-                json.dump(mcp_data, f, indent=2)
+                json.dump(output_config, f, indent=2)
             global_stats.record("MCP", "converted", len(mcp_data))
 
     def _convert_agent_to_dict(self, agent: Agent) -> Dict[str, Any]:

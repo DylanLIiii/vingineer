@@ -128,7 +128,11 @@ claude-migrate convert opencode --verbose
 # Explicitly specify config source (overrides auto-detection)
 claude-migrate convert opencode --source ~/.claude
 
-# Include installed Claude plugins (project scope only)
+# Explicitly choose config scope (user or project level)
+claude-migrate convert opencode --scope user
+claude-migrate convert opencode --scope project
+
+# Include installed Claude plugins
 claude-migrate convert opencode --plugins
 ```
 
@@ -242,7 +246,9 @@ The tool auto-detects config scope as follows:
 - **Project scope**: If `./.claude/` exists in the current working directory, the tool loads project-level config only.
 - **User scope**: Otherwise, the tool loads from `~/.claude/`.
 
-You can override auto-detection with `--source PATH`.
+You can override auto-detection with:
+- `--source PATH` - Specify an explicit config directory
+- `--scope [user|project]` - Explicitly choose user or project scope (errors if the specified scope doesn't exist)
 
 **Plugins** are loaded from `~/.claude/plugins/installed_plugins.json` when you pass `--plugins`. Plugin items are namespaced as `pluginName:itemId` to avoid collisions.
 
@@ -300,7 +306,8 @@ Convert Claude Code configurations to target format.
 **Options:**
 - `-o, --output PATH` - Output directory (default depends on target and scope)
 - `--source PATH` - Claude config directory to read from (overrides auto-detection)
-- `--plugins` - Include installed Claude plugins (only honored in project scope)
+- `-s, --scope [user|project]` - Config scope: `user` (~/.claude) or `project` (./.claude). Default: auto-detect (project takes precedence)
+- `--plugins` - Include installed Claude plugins
 - `-f, --format [dir\|json]` - Output format (only for OpenCode, default: `dir`)
 - `-n, --dry-run` - Preview changes without writing files
 - `--force` - Overwrite existing files (automatic backups are always created)
@@ -334,7 +341,18 @@ claude-migrate convert copilot --dry-run --verbose
 ### Convert user-level config explicitly
 
 ```bash
+# Using --source (original method)
 claude-migrate convert opencode --source ~/.claude
+
+# Using --scope (new method, clearer intent)
+claude-migrate convert opencode --scope user
+```
+
+### Convert project-level config explicitly
+
+```bash
+# Explicitly use project scope (errors if ./.claude doesn't exist)
+claude-migrate convert opencode --scope project
 ```
 
 ### Convert project config with plugins

@@ -100,10 +100,12 @@ def test_opencode_converter(tmp_path):
     assert skill_file.exists()
 
     # Verify MCP
-    mcp_file = output_dir / "mcp.json"
+    mcp_file = output_dir / "opencode.jsonc"
     assert mcp_file.exists()
     data = json.loads(mcp_file.read_text(encoding="utf-8"))
-    assert "srv" in data
+    assert "$schema" in data
+    assert "mcp" in data
+    assert "srv" in data["mcp"]
 
 
 def test_copilot_converter(tmp_path):
@@ -616,16 +618,19 @@ def test_plugin_mcp_from_plugin_json(tmp_path, monkeypatch):
 
 def test_opencode_mcp_merge(tmp_path):
     """Test that MCP servers are merged when merge=True."""
-    existing_mcp = {
-        "existing-server": {
-            "command": "echo",
-            "args": ["existing"],
-        }
+    existing_config = {
+        "$schema": "https://opencode.ai/config.json",
+        "mcp": {
+            "existing-server": {
+                "command": "echo",
+                "args": ["existing"],
+            }
+        },
     }
     output_dir = tmp_path / "opencode_out"
     output_dir.mkdir()
-    mcp_file = output_dir / "mcp.json"
-    mcp_file.write_text(json.dumps(existing_mcp), encoding="utf-8")
+    mcp_file = output_dir / "opencode.jsonc"
+    mcp_file.write_text(json.dumps(existing_config), encoding="utf-8")
 
     config = ClaudeConfig(
         mcp_servers={
@@ -637,26 +642,31 @@ def test_opencode_mcp_merge(tmp_path):
     converter.save(output_dir, merge=True)
 
     result = json.loads(mcp_file.read_text(encoding="utf-8"))
-    assert "existing-server" in result
-    assert "new-server" in result
+    assert "$schema" in result
+    assert "mcp" in result
+    assert "existing-server" in result["mcp"]
+    assert "new-server" in result["mcp"]
 
 
 def test_opencode_mcp_merge_disabled_removes(tmp_path):
     """Test that disabled MCP servers are removed during merge."""
-    existing_mcp = {
-        "to-remove": {
-            "command": "echo",
-            "args": ["remove"],
-        },
-        "to-keep": {
-            "command": "echo",
-            "args": ["keep"],
+    existing_config = {
+        "$schema": "https://opencode.ai/config.json",
+        "mcp": {
+            "to-remove": {
+                "command": "echo",
+                "args": ["remove"],
+            },
+            "to-keep": {
+                "command": "echo",
+                "args": ["keep"],
+            },
         },
     }
     output_dir = tmp_path / "opencode_out"
     output_dir.mkdir()
-    mcp_file = output_dir / "mcp.json"
-    mcp_file.write_text(json.dumps(existing_mcp), encoding="utf-8")
+    mcp_file = output_dir / "opencode.jsonc"
+    mcp_file.write_text(json.dumps(existing_config), encoding="utf-8")
 
     config = ClaudeConfig(
         mcp_servers={
@@ -669,9 +679,11 @@ def test_opencode_mcp_merge_disabled_removes(tmp_path):
     converter.save(output_dir, merge=True)
 
     result = json.loads(mcp_file.read_text(encoding="utf-8"))
-    assert "to-keep" in result
-    assert "new-server" in result
-    assert "to-remove" not in result
+    assert "$schema" in result
+    assert "mcp" in result
+    assert "to-keep" in result["mcp"]
+    assert "new-server" in result["mcp"]
+    assert "to-remove" not in result["mcp"]
 
 
 def test_copilot_mcp_merge(tmp_path):

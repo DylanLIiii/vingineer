@@ -11,6 +11,7 @@ from claude_migrate.utils import (
     global_stats,
     ensure_dir,
     detect_claude_config,
+    get_claude_config_for_scope,
     get_default_output_dir,
     sanitize_filename,
 )
@@ -41,6 +42,13 @@ def convert(
         False,
         "--plugins",
         help="Include installed Claude plugins (project scope only)",
+    ),
+    scope: Optional[Literal["user", "project"]] = typer.Option(
+        None,
+        "--scope",
+        "-s",
+        help="Config scope: 'user' (~/.claude) or 'project' (./.claude). "
+             "Default: auto-detect (project takes precedence).",
     ),
     format: Literal["dir", "json"] = typer.Option(
         "dir",
@@ -73,17 +81,31 @@ def convert(
 
     try:
         if source is not None:
+            # Explicit source path provided
             claude_base = source.expanduser().resolve()
-            scope = "project" if claude_base == (Path.cwd() / ".claude") else "user"
+            # Infer scope from path for output directory defaults
+            detected_scope = (
+                "project" if claude_base == (Path.cwd() / ".claude") else "user"
+            )
+
+            if scope is not None:
+                console.print(
+                    "[yellow]Warning: --scope ignored when --source is provided[/yellow]"
+                )
+        elif scope is not None:
+            # Explicit scope requested
+            claude_base = get_claude_config_for_scope(scope)
+            detected_scope = scope
         else:
-            claude_base, scope = detect_claude_config()
+            # Auto-detect (default behavior)
+            claude_base, detected_scope = detect_claude_config()
     except FileNotFoundError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
 
     # Determine output directory
     if output is None:
-        output = get_default_output_dir(target, scope)
+        output = get_default_output_dir(target, detected_scope)
     output = output.expanduser().resolve()
 
     # Load Claude Code configuration
@@ -91,7 +113,7 @@ def convert(
         f"[cyan]Loading Claude Code configuration from {claude_base}...[/cyan]"
     )
 
-    loader = ClaudeLoader(claude_base, include_plugins=plugins, scope=scope)
+    loader = ClaudeLoader(claude_base, include_plugins=plugins, scope=detected_scope)
     config = loader.load()
 
     if verbose:

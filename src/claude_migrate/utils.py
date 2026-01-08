@@ -110,6 +110,51 @@ def detect_claude_config(
     raise FileNotFoundError(get_claude_setup_instructions())
 
 
+def get_claude_config_for_scope(
+    scope: ClaudeScope,
+    cwd: Optional[Path] = None,
+    home: Optional[Path] = None,
+) -> Path:
+    """Get Claude config directory for a specific scope.
+
+    Unlike detect_claude_config(), this does not fall back to another scope
+    if the requested one doesn't exist - it raises an error instead.
+
+    Args:
+        scope: Either "project" or "user"
+        cwd: Current working directory (defaults to Path.cwd())
+        home: Home directory (defaults to Path.home())
+
+    Returns:
+        Path to the Claude config directory
+
+    Raises:
+        FileNotFoundError: If the config directory for the requested scope doesn't exist
+    """
+    if cwd is None:
+        cwd = Path.cwd()
+    if home is None:
+        home = Path.home()
+
+    if scope == "project":
+        config_dir = cwd / ".claude"
+        if not config_dir.exists():
+            raise FileNotFoundError(
+                f"Project scope requested but {config_dir} directory not found.\n"
+                "Create it first or use --scope user to use your user-level config."
+            )
+        return config_dir
+
+    # scope == "user"
+    config_dir = home / ".claude"
+    if not config_dir.exists():
+        raise FileNotFoundError(
+            f"User scope requested but {config_dir} directory not found.\n"
+            "Run Claude Code at least once to create your user config."
+        )
+    return config_dir
+
+
 def get_default_output_dir(
     target: Literal["opencode", "copilot"], scope: ClaudeScope
 ) -> Path:
