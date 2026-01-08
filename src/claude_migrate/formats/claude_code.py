@@ -170,6 +170,64 @@ class ClaudeLoader:
 
         return mcp_servers
 
+    def _find_best_plugin_path(self, plugin_name: str, fallback_path: str) -> Path:
+        """Find the best plugin path, preferring marketplace version.
+
+        Marketplace path: ~/.claude/plugins/marketplaces/{PluginName}/plugins/{PluginName}/
+        Fallback path: whatever is specified in installPath
+
+        Marketplace version is preferred because it's typically more up-to-date
+        (cache might be stale after plugin updates).
+        """
+        base = Path.home() / ".claude" / "plugins"
+        marketplace_path = base / "marketplaces" / plugin_name / "plugins" / plugin_name
+
+        fallback = Path(fallback_path)
+
+        marketplace_exists = marketplace_path.exists() and self._has_more_content(
+            marketplace_path, fallback
+        )
+
+        if marketplace_exists:
+            return marketplace_path
+        return fallback
+
+    def _has_more_content(self, path1: Path, path2: Path) -> bool:
+        """Check if path1 has more content than path2 (more files or newer)."""
+        if not path2.exists():
+            return True
+
+        try:
+            count1 = len(list(path1.rglob("*"))) if path1.exists() else 0
+            count2 = len(list(path2.rglob("*"))) if path2.exists() else 0
+
+            # If counts differ significantly, the one with more content is better
+            if abs(count1 - count2) > 2:
+                return count1 > count2
+
+            # If counts are similar, check modification times
+            mtime1 = self._get_max_mtime(path1)
+            mtime2 = self._get_max_mtime(path2)
+
+            # Give marketplace a slight preference if times are close
+            if mtime1 > mtime2:
+                return True
+            return False
+        except Exception:
+            return False
+
+    def _get_max_mtime(self, path: Path) -> float:
+        """Get the maximum modification time of all files in a directory."""
+        max_time = 0
+        if path.exists():
+            try:
+                for p in path.rglob("*"):
+                    if p.is_file():
+                        max_time = max(max_time, p.stat().st_mtime)
+            except Exception:
+                pass
+        return max_time
+
     def load_plugins(self) -> ClaudeConfig:
         """Load installed plugins from ~/.claude/plugins/installed_plugins.json.
 
@@ -235,7 +293,9 @@ class ClaudeLoader:
                 global_stats.record("Plugins", "skipped")
                 continue
 
-            plugin_path = Path(plugin_dir)
+            # Try marketplace version first (usually more up-to-date)
+            # Marketplace path: ~/.claude/plugins/marketplaces/{PluginName}/plugins/{PluginName}/
+            plugin_path = self._find_best_plugin_path(plugin_name, plugin_dir)
             if not plugin_path.exists():
                 global_stats.record("Plugins", "skipped")
                 continue
