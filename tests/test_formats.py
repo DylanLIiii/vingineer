@@ -712,3 +712,76 @@ def test_copilot_mcp_merge(tmp_path):
     assert "existing-server" in result["mcpServers"]
     assert "new-server" in result["mcpServers"]
     assert result["mcpServers"]["new-server"]["type"] == "stdio"
+
+
+def test_nested_directory_hierarchy_preservation(tmp_path):
+    """Test that nested directory structures are preserved during conversion."""
+    # Create Claude config with nested structure
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    
+    # Create nested commands
+    (claude_dir / "commands").mkdir()
+    (claude_dir / "commands" / "simple.md").write_text(
+        "---\nname: simple\n---\nSimple command"
+    )
+    (claude_dir / "commands" / "core").mkdir()
+    (claude_dir / "commands" / "core" / "plan.md").write_text(
+        "---\nname: plan\n---\nPlan command"
+    )
+    (claude_dir / "commands" / "tools").mkdir()
+    (claude_dir / "commands" / "tools" / "git").mkdir()
+    (claude_dir / "commands" / "tools" / "git" / "commit.md").write_text(
+        "---\nname: commit\n---\nCommit command"
+    )
+    
+    # Create nested agents
+    (claude_dir / "agents").mkdir()
+    (claude_dir / "agents" / "simple-agent.md").write_text(
+        "---\nname: simple-agent\n---\nSimple agent"
+    )
+    (claude_dir / "agents" / "specialized").mkdir()
+    (claude_dir / "agents" / "specialized" / "python-expert.md").write_text(
+        "---\nname: python-expert\n---\nPython expert"
+    )
+    
+    # Load the config
+    loader = ClaudeLoader(claude_dir)
+    config = loader.load()
+    
+    # Verify source_path is tracked
+    assert len(config.commands) == 3
+    cmd_paths = {cmd.name: cmd.source_path for cmd in config.commands}
+    assert cmd_paths["simple"] == "simple.md"
+    assert cmd_paths["plan"] == "core/plan.md"
+    assert cmd_paths["commit"] == "tools/git/commit.md"
+    
+    assert len(config.agents) == 2
+    agent_paths = {agent.name: agent.source_path for agent in config.agents}
+    assert agent_paths["simple-agent"] == "simple-agent.md"
+    assert agent_paths["python-expert"] == "specialized/python-expert.md"
+    
+    # Test OpenCode conversion
+    opencode_output = tmp_path / "opencode_out"
+    opencode_converter = OpenCodeConverter(config)
+    opencode_converter.save(opencode_output, format="dir")
+    
+    # Verify hierarchy is preserved
+    assert (opencode_output / "command" / "simple.md").exists()
+    assert (opencode_output / "command" / "core" / "plan.md").exists()
+    assert (opencode_output / "command" / "tools" / "git" / "commit.md").exists()
+    assert (opencode_output / "agent" / "simple-agent.md").exists()
+    assert (opencode_output / "agent" / "specialized" / "python-expert.md").exists()
+    
+    # Test Copilot conversion
+    copilot_output = tmp_path / "copilot_out"
+    copilot_converter = CopilotConverter(config)
+    copilot_converter.save(copilot_output)
+    
+    # Verify hierarchy is preserved
+    assert (copilot_output / ".github" / "prompts" / "simple.prompt.md").exists()
+    assert (copilot_output / ".github" / "prompts" / "core" / "plan.prompt.md").exists()
+    assert (copilot_output / ".github" / "prompts" / "tools" / "git" / "commit.prompt.md").exists()
+    assert (copilot_output / ".github" / "agents" / "simple-agent.agent.md").exists()
+    assert (copilot_output / ".github" / "agents" / "specialized" / "python-expert.agent.md").exists()
+

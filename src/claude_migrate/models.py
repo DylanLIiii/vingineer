@@ -31,6 +31,7 @@ class Agent(BaseModel):
 
     # Internal fields for conversion
     original_description: Optional[str] = None
+    source_path: Optional[str] = None  # Relative path from agents/ directory
 
 
 class Command(BaseModel):
@@ -43,6 +44,7 @@ class Command(BaseModel):
     agent: Optional[str] = None
     argument_hint: Optional[str] = Field(None, alias="argument-hint")
     subtask: Optional[bool] = None
+    source_path: Optional[str] = None  # Relative path from commands/ directory
 
 
 class Skill(BaseModel):

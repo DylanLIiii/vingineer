@@ -6,8 +6,8 @@ from claude_migrate.utils import (
     ensure_dir,
     global_stats,
     clean_description,
-    sanitize_filename,
     backup_file,
+    get_output_path,
 )
 
 
@@ -35,8 +35,10 @@ class CopilotConverter:
     def _save_prompts(self, prompts_dir: Path, merge: bool = False):
         ensure_dir(prompts_dir)
         for cmd in self.config.commands:
-            safe_name = sanitize_filename(cmd.name)
-            file_path = prompts_dir / f"{safe_name}.prompt.md"
+            # Use helper function to get output path with hierarchy preservation
+            file_path = get_output_path(
+                prompts_dir, cmd.source_path, cmd.name, ".prompt.md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Prompts", "skipped")
@@ -67,8 +69,10 @@ class CopilotConverter:
     def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
-            safe_name = sanitize_filename(agent.name)
-            file_path = agents_dir / f"{safe_name}.agent.md"
+            # Use helper function to get output path with hierarchy preservation
+            file_path = get_output_path(
+                agents_dir, agent.source_path, agent.name, ".agent.md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Agents", "skipped")

@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 import json
 import yaml
 from claude_migrate.models import ClaudeConfig, Agent, Command
-from claude_migrate.utils import ensure_dir, global_stats, backup_file
+from claude_migrate.utils import ensure_dir, global_stats, backup_file, get_output_path
 
 
 class OpenCodeConverter:
@@ -66,8 +66,12 @@ class OpenCodeConverter:
     def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
-            safe_name = agent.name.replace("/", "_").replace(":", "_")
-            file_path = agents_dir / f"{safe_name}.md"
+            # Use helper function to get output path with hierarchy preservation
+            # Note: OpenCode uses sanitized name with "/" and ":" replaced by "_" as fallback
+            fallback_name = agent.name.replace("/", "_").replace(":", "_")
+            file_path = get_output_path(
+                agents_dir, agent.source_path, fallback_name, ".md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Agents", "skipped")
@@ -106,8 +110,12 @@ class OpenCodeConverter:
     def _save_commands(self, commands_dir: Path, merge: bool = False):
         ensure_dir(commands_dir)
         for cmd in self.config.commands:
-            safe_name = cmd.name.replace("/", "_").replace(":", "_")
-            file_path = commands_dir / f"{safe_name}.md"
+            # Use helper function to get output path with hierarchy preservation
+            # Note: OpenCode uses sanitized name with "/" and ":" replaced by "_" as fallback
+            fallback_name = cmd.name.replace("/", "_").replace(":", "_")
+            file_path = get_output_path(
+                commands_dir, cmd.source_path, fallback_name, ".md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Commands", "skipped")
