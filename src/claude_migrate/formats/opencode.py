@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 import json
 import yaml
 from claude_migrate.models import ClaudeConfig, Agent, Command
-from claude_migrate.utils import ensure_dir, global_stats, backup_file
+from claude_migrate.utils import ensure_dir, global_stats, backup_file, get_output_path
 
 
 class OpenCodeConverter:
@@ -66,23 +66,12 @@ class OpenCodeConverter:
     def _save_agents(self, agents_dir: Path, merge: bool = False):
         ensure_dir(agents_dir)
         for agent in self.config.agents:
-            # Use source_path if available to preserve directory hierarchy
-            if agent.source_path:
-                # Remove the .md extension and use the directory structure
-                source_path_obj = Path(agent.source_path)
-                # Get parent directory path and filename without extension
-                if source_path_obj.parent != Path('.'):
-                    # Has subdirectories - preserve them
-                    subdir = agents_dir / source_path_obj.parent
-                    ensure_dir(subdir)
-                    file_path = subdir / f"{source_path_obj.stem}.md"
-                else:
-                    # No subdirectories - save at root
-                    file_path = agents_dir / f"{source_path_obj.stem}.md"
-            else:
-                # Fallback to old behavior for backward compatibility
-                safe_name = agent.name.replace("/", "_").replace(":", "_")
-                file_path = agents_dir / f"{safe_name}.md"
+            # Use helper function to get output path with hierarchy preservation
+            # Note: OpenCode uses sanitized name with "/" and ":" replaced by "_" as fallback
+            fallback_name = agent.name.replace("/", "_").replace(":", "_")
+            file_path = get_output_path(
+                agents_dir, agent.source_path, fallback_name, ".md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Agents", "skipped")
@@ -121,23 +110,12 @@ class OpenCodeConverter:
     def _save_commands(self, commands_dir: Path, merge: bool = False):
         ensure_dir(commands_dir)
         for cmd in self.config.commands:
-            # Use source_path if available to preserve directory hierarchy
-            if cmd.source_path:
-                # Remove the .md extension and use the directory structure
-                source_path_obj = Path(cmd.source_path)
-                # Get parent directory path and filename without extension
-                if source_path_obj.parent != Path('.'):
-                    # Has subdirectories - preserve them
-                    subdir = commands_dir / source_path_obj.parent
-                    ensure_dir(subdir)
-                    file_path = subdir / f"{source_path_obj.stem}.md"
-                else:
-                    # No subdirectories - save at root
-                    file_path = commands_dir / f"{source_path_obj.stem}.md"
-            else:
-                # Fallback to old behavior for backward compatibility
-                safe_name = cmd.name.replace("/", "_").replace(":", "_")
-                file_path = commands_dir / f"{safe_name}.md"
+            # Use helper function to get output path with hierarchy preservation
+            # Note: OpenCode uses sanitized name with "/" and ":" replaced by "_" as fallback
+            fallback_name = cmd.name.replace("/", "_").replace(":", "_")
+            file_path = get_output_path(
+                commands_dir, cmd.source_path, fallback_name, ".md"
+            )
 
             if merge and file_path.exists():
                 global_stats.record("Commands", "skipped")

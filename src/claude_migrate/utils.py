@@ -367,6 +367,39 @@ def sanitize_filename(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
 
 
+def get_output_path(
+    base_dir: Path, source_path: Optional[str], fallback_name: str, extension: str
+) -> Path:
+    """
+    Get output file path preserving directory hierarchy from source_path.
+    
+    Args:
+        base_dir: Base directory for output
+        source_path: Relative source path (e.g., "core/plan.md")
+        fallback_name: Name to use if source_path is None
+        extension: File extension to use (e.g., ".md", ".prompt.md")
+    
+    Returns:
+        Path object for the output file
+    """
+    if source_path:
+        # Remove the .md extension and use the directory structure
+        source_path_obj = Path(source_path)
+        # Get parent directory path and filename without extension
+        if source_path_obj.parent != Path('.'):
+            # Has subdirectories - preserve them
+            subdir = base_dir / source_path_obj.parent
+            ensure_dir(subdir)
+            return subdir / f"{source_path_obj.stem}{extension}"
+        else:
+            # No subdirectories - save at root
+            return base_dir / f"{source_path_obj.stem}{extension}"
+    else:
+        # Fallback to sanitized name for backward compatibility
+        safe_name = sanitize_filename(fallback_name)
+        return base_dir / f"{safe_name}{extension}"
+
+
 def clean_description(desc: str) -> str:
     """Ensure description is a single line and clean of quotes."""
     if not desc:
