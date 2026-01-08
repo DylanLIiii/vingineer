@@ -712,3 +712,135 @@ def test_copilot_mcp_merge(tmp_path):
     assert "existing-server" in result["mcpServers"]
     assert "new-server" in result["mcpServers"]
     assert result["mcpServers"]["new-server"]["type"] == "stdio"
+
+
+def test_opencode_plugin_entities_update_in_merge_mode(tmp_path):
+    """Test that plugin entities are updated even in merge mode."""
+    output_dir = tmp_path / "opencode_out"
+    output_dir.mkdir()
+    (output_dir / "agent").mkdir()
+    (output_dir / "command").mkdir()
+
+    # Create existing files - one plugin, one user
+    (output_dir / "agent" / "myPlugin_agent.md").write_text(
+        "---\nmode: subagent\n---\nOLD PLUGIN CONTENT",
+        encoding="utf-8",
+    )
+    (output_dir / "agent" / "my-agent.md").write_text(
+        "---\nmode: subagent\n---\nOLD USER CONTENT",
+        encoding="utf-8",
+    )
+    (output_dir / "command" / "myPlugin_cmd.md").write_text(
+        "---\n---\nOLD PLUGIN CMD",
+        encoding="utf-8",
+    )
+    (output_dir / "command" / "my-cmd.md").write_text(
+        "---\n---\nOLD USER CMD",
+        encoding="utf-8",
+    )
+
+    # Create config with updated plugin entities and new user entity
+    config = ClaudeConfig(
+        agents=[
+            Agent(name="myPlugin:agent", prompt="NEW PLUGIN CONTENT"),
+            Agent(name="user-agent", prompt="NEW USER ENTITY"),
+        ],
+        commands=[
+            Command(name="myPlugin:cmd", body="NEW PLUGIN CMD"),
+            Command(name="user-cmd", body="NEW USER CMD"),
+        ],
+    )
+
+    converter = OpenCodeConverter(config)
+    converter.save(output_dir, merge=True)
+
+    # Plugin entities should be updated
+    plugin_agent_content = (output_dir / "agent" / "myPlugin_agent.md").read_text(
+        encoding="utf-8"
+    )
+    assert "NEW PLUGIN CONTENT" in plugin_agent_content
+    assert "OLD PLUGIN CONTENT" not in plugin_agent_content
+
+    plugin_cmd_content = (output_dir / "command" / "myPlugin_cmd.md").read_text(
+        encoding="utf-8"
+    )
+    assert "NEW PLUGIN CMD" in plugin_cmd_content
+    assert "OLD PLUGIN CMD" not in plugin_cmd_content
+
+    # User entities should be skipped (preserve existing)
+    user_agent_content = (output_dir / "agent" / "my-agent.md").read_text(
+        encoding="utf-8"
+    )
+    assert "OLD USER CONTENT" in user_agent_content
+
+    user_cmd_content = (output_dir / "command" / "my-cmd.md").read_text(
+        encoding="utf-8"
+    )
+    assert "OLD USER CMD" in user_cmd_content
+
+    # New user entities should be created
+    assert (output_dir / "agent" / "user-agent.md").exists()
+    assert (output_dir / "command" / "user-cmd.md").exists()
+
+
+def test_copilot_plugin_entities_update_in_merge_mode(tmp_path):
+    """Test that plugin entities are updated even in merge mode for Copilot."""
+    output_dir = tmp_path / "copilot_out"
+    output_dir.mkdir()
+    (output_dir / ".github" / "agents").mkdir(parents=True)
+    (output_dir / ".github" / "prompts").mkdir(parents=True)
+
+    # Create existing files - one plugin, one user
+    (output_dir / ".github" / "agents" / "myPlugin_agent.agent.md").write_text(
+        "---\nname: myPlugin:agent\n---\nOLD PLUGIN CONTENT",
+        encoding="utf-8",
+    )
+    (output_dir / ".github" / "agents" / "my-agent.agent.md").write_text(
+        "---\nname: my-agent\n---\nOLD USER CONTENT",
+        encoding="utf-8",
+    )
+    (output_dir / ".github" / "prompts" / "myPlugin_cmd.prompt.md").write_text(
+        "---\nname: myPlugin:cmd\n---\nOLD PLUGIN CMD",
+        encoding="utf-8",
+    )
+    (output_dir / ".github" / "prompts" / "my-cmd.prompt.md").write_text(
+        "---\nname: my-cmd\n---\nOLD USER CMD",
+        encoding="utf-8",
+    )
+
+    # Create config with updated plugin entities
+    config = ClaudeConfig(
+        agents=[
+            Agent(name="myPlugin:agent", prompt="NEW PLUGIN CONTENT"),
+        ],
+        commands=[
+            Command(name="myPlugin:cmd", body="NEW PLUGIN CMD"),
+        ],
+    )
+
+    converter = CopilotConverter(config)
+    converter.save(output_dir, merge=True)
+
+    # Plugin entities should be updated
+    plugin_agent_content = (
+        output_dir / ".github" / "agents" / "myPlugin_agent.agent.md"
+    ).read_text(encoding="utf-8")
+    assert "NEW PLUGIN CONTENT" in plugin_agent_content
+    assert "OLD PLUGIN CONTENT" not in plugin_agent_content
+
+    plugin_cmd_content = (
+        output_dir / ".github" / "prompts" / "myPlugin_cmd.prompt.md"
+    ).read_text(encoding="utf-8")
+    assert "NEW PLUGIN CMD" in plugin_cmd_content
+    assert "OLD PLUGIN CMD" not in plugin_cmd_content
+
+    # User entities should be skipped (preserve existing)
+    user_agent_content = (
+        output_dir / ".github" / "agents" / "my-agent.agent.md"
+    ).read_text(encoding="utf-8")
+    assert "OLD USER CONTENT" in user_agent_content
+
+    user_cmd_content = (
+        output_dir / ".github" / "prompts" / "my-cmd.prompt.md"
+    ).read_text(encoding="utf-8")
+    assert "OLD USER CMD" in user_cmd_content

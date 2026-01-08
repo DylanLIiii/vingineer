@@ -8,21 +8,13 @@ from claude_migrate.utils import (
     clean_description,
     sanitize_filename,
     backup_file,
+    is_plugin_entity,
 )
 
 
 class CopilotConverter:
     def __init__(self, config: ClaudeConfig):
         self.config = config
-
-    def _should_write_file(
-        self, file_path: Path, entity_name: str, merge: bool
-    ) -> bool:
-        if not merge:
-            return True
-        if not file_path.exists():
-            return True
-        return False
 
     def save(self, target_dir: Path, merge: bool = False):
         github_dir = target_dir / ".github"
@@ -38,7 +30,7 @@ class CopilotConverter:
             safe_name = sanitize_filename(cmd.name)
             file_path = prompts_dir / f"{safe_name}.prompt.md"
 
-            if merge and file_path.exists():
+            if merge and file_path.exists() and not is_plugin_entity(cmd.name):
                 global_stats.record("Prompts", "skipped")
                 continue
 
@@ -70,7 +62,7 @@ class CopilotConverter:
             safe_name = sanitize_filename(agent.name)
             file_path = agents_dir / f"{safe_name}.agent.md"
 
-            if merge and file_path.exists():
+            if merge and file_path.exists() and not is_plugin_entity(agent.name):
                 global_stats.record("Agents", "skipped")
                 continue
 

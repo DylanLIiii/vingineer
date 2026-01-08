@@ -433,3 +433,11 @@ def cleanup_old_backups(backup_dir: Path, file_stem: str, keep: int = 5) -> None
             old_backup.unlink()
         except Exception as e:
             print(f"Warning: Failed to delete old backup {old_backup}: {e}")
+
+
+def is_plugin_entity(name: str) -> bool:
+    """Check if an entity name is from a plugin (contains colon separator).
+
+    Plugin entities are namespaced as "pluginName:entityName" to avoid collisions.
+    """
+    return ":" in name
