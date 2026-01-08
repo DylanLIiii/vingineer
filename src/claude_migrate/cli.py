@@ -255,24 +255,6 @@ def _preview_changes(
                 f"  .github/prompts/*.prompt.md ({len(config.commands)} total): {', '.join(status)}"
             )
 
-        created, overwritten = count_status(
-            config.skills,
-            lambda s: output
-            / ".github"
-            / "skills"
-            / sanitize_filename(s.name)
-            / "SKILL.md",
-        )
-        if config.skills:
-            status = []
-            if created:
-                status.append(f"[green]{created} new[/green]")
-            if overwritten:
-                status.append(f"[yellow]{overwritten} overwrite[/yellow]")
-            console.print(
-                f"  .github/skills/*/SKILL.md ({len(config.skills)} total): {', '.join(status)}"
-            )
-
         if config.mcp_servers:
             mcp_path = output / "mcp.json"
             if mcp_path.exists():
@@ -304,7 +286,10 @@ def _print_instructions(console, target: str, output: Path):
     else:
         console.print("  To use with GitHub Copilot:")
         console.print(f"    1. Copy '{output}/.github' into a workspace root")
-        console.print("    2. Merge MCP config as needed")
+        console.print(
+            "    2. Note: Skills are natively supported via .claude/skills and do not need conversion."
+        )
+        console.print("    3. Merge MCP config as needed")
         console.print(
             "       (VS Code workspace MCP file is typically .vscode/mcp.json)"
         )

@@ -121,7 +121,6 @@ def test_copilot_converter(tmp_path):
     # Verify Structure
     assert (output_dir / ".github" / "agents" / "test-agent.agent.md").exists()
     assert (output_dir / ".github" / "prompts" / "test-cmd.prompt.md").exists()
-    assert (output_dir / ".github" / "skills" / "test-skill" / "SKILL.md").exists()
 
 
 def test_copilot_converter_sanitizes_filenames(tmp_path):
@@ -138,7 +137,6 @@ def test_copilot_converter_sanitizes_filenames(tmp_path):
 
     assert (output_dir / ".github" / "agents" / "bad_agent_name.agent.md").exists()
     assert (output_dir / ".github" / "prompts" / "bad_command_name.prompt.md").exists()
-    assert (output_dir / ".github" / "skills" / "bad_skill_name" / "SKILL.md").exists()
 
     # Verify Prompt Replacement
     cmd_content = (
